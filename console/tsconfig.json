@@ -20,7 +20,13 @@
     "noEmit": true,
     "types": [
       "vitest/globals",
-      "@testing-library/jest-dom"
+      "@testing-library/jest-dom",
+      // vite.config.ts, the theme parity test and the live-check script all
+      // use `process` and `node:` modules. This typechecked without declaring
+      // it only because TypeScript found an @types/node in a parent directory
+      // of the developer's home — an ambient dependency that exists on exactly
+      // one machine. A clean clone had no such luck.
+      "node"
     ]
   },
   "include": [
