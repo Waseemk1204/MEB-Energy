@@ -1,0 +1,530 @@
+[
+  {
+    "name": "audit ledger accepts a repeated upload",
+    "why": "A technician with bad signal retries; a duplicate is a change recorded twice.",
+    "package": "backend",
+    "file": "src/audit/service.ts",
+    "from": "    if (existing) return { auditId: existing.id, duplicate: true };",
+    "to": "    if (false && existing) return { auditId: existing.id, duplicate: true };"
+  },
+  {
+    "name": "tenant scope error becomes 403 instead of 404",
+    "why": "403 confirms the resource exists and belongs to someone else — an enumeration oracle.",
+    "package": "backend",
+    "file": "src/http/errors.ts",
+    "from": "  if (error instanceof TenantScopeError) {",
+    "to": "  if (false && error instanceof TenantScopeError) {"
+  },
+  {
+    "name": "CORS reflects any origin",
+    "why": "An allowlist that admits everyone is not an allowlist.",
+    "package": "backend",
+    "file": "src/http/cors.ts",
+    "from": "  return allowed.includes(origin.replace(/\\/$/, ''));",
+    "to": "  return true;"
+  },
+  {
+    "name": "responses become cacheable",
+    "why": "Audit trails and tenant data held by a shared cache is a cross-tenant leak.",
+    "package": "backend",
+    "file": "src/http/headers.ts",
+    "from": "    void reply.header('cache-control', 'no-store');",
+    "to": ""
+  },
+  {
+    "name": "readiness stops touching the database",
+    "why": "A broken instance staying in the rotation is the failure readiness exists to prevent.",
+    "package": "backend",
+    "file": "src/server.ts",
+    "from": "      const row = store.get<{ n: number }>('SELECT COUNT(*) AS n FROM parameter_definitions');",
+    "to": "      const row = { n: 1 };"
+  },
+  {
+    "name": "an invitation can be used twice",
+    "why": "The single-use property is the only thing bounding a leaked link.",
+    "package": "backend",
+    "file": "src/auth/invitations.ts",
+    "from": "  if (row.accepted_at !== null) {",
+    "to": "  if (false && row.accepted_at !== null) {"
+  },
+  {
+    "name": "invitation tokens stored in the clear",
+    "why": "A database dump would hand someone every outstanding invitation.",
+    "package": "backend",
+    "file": "src/auth/invitations.ts",
+    "from": "    hashToken(token),",
+    "to": "    token,"
+  },
+  {
+    "name": "bootstrap can mint an admin on a running system",
+    "why": "Anyone who can set an environment variable could grant themselves access.",
+    "package": "backend",
+    "file": "src/admin/bootstrap.ts",
+    "from": "  if ((existing?.n ?? 0) > 0) return { kind: 'skipped', reason: 'users_exist' };",
+    "to": ""
+  },
+  {
+    "name": "the fleet query drops its bound",
+    "why": "Unbounded, one large tenant is a problem for everyone on the instance.",
+    "package": "backend",
+    "file": "src/server.ts",
+    "from": "    const rows = store.all<{ id: string }>(`${q.sql} LIMIT ?`, ...q.params, limit + 1);",
+    "to": "    const rows = store.all<{ id: string }>(q.sql, ...q.params);"
+  },
+  {
+    "name": "a command reaches a battery with nobody on site",
+    "why": "Mode 1's architectural constraint: presence is not optional.",
+    "package": "backend",
+    "file": "src/broker/commands.ts",
+    "from": "  if (!live || live.userId !== principal.userId) {",
+    "to": "  if (false) {"
+  },
+  {
+    "name": "simulated telemetry becomes uploadable",
+    "why": "An invented reading is indistinguishable from a measured one once it is a row.",
+    "package": "mobile",
+    "file": "src/telemetry/uploadBuffer.ts",
+    "from": "    if (simulated) {\n      this.refusedCount += 1;\n      return false;\n    }\n\n",
+    "to": ""
+  },
+  {
+    "name": "the store stops telling the buffer where frames came from",
+    "why": "The call site, not the guard — the gap that has recurred four times.",
+    "package": "mobile",
+    "file": "src/store/useTelemetryStore.ts",
+    "from": "state.buffer.offer(snapshot, source.simulated);",
+    "to": "state.buffer.offer(snapshot);"
+  },
+  {
+    "name": "example activity entries become uploadable",
+    "why": "The ledger is append-only; a fabrication that reaches it is permanent.",
+    "package": "mobile",
+    "file": "src/store/useActivityStore.ts",
+    "from": "  return demo ? EXAMPLES : [];",
+    "to": "  return EXAMPLES;"
+  },
+  {
+    "name": "thinning drops a fault transition",
+    "why": "Erases the moment an over-temperature appeared, leaving a calm-looking history.",
+    "package": "mobile",
+    "file": "src/telemetry/uploadBuffer.ts",
+    "from": "    if (!dueBySchedule && !changedState) return false;",
+    "to": "    if (!dueBySchedule) return false;"
+  },
+  {
+    "name": "an unconfirmed write updates the displayed value",
+    "why": "Presents a guess about physical hardware as fact.",
+    "package": "mobile",
+    "file": "src/store/useRemoteChangeStore.ts",
+    "from": "        if (classified.confirmedValue !== null) {",
+    "to": "        if (true) {"
+  },
+  {
+    "name": "a claimed command is never reported",
+    "why": "The server marks it claimed on handover; unreported, it is stuck forever.",
+    "package": "mobile",
+    "file": "src/store/useRemoteChangeStore.ts",
+    "from": "        await reportResult(api, command.id, classified.outcome, classified.message ?? undefined);",
+    "to": ""
+  },
+  {
+    "name": "presence is never announced",
+    "why": "Without it the server hands over nothing and Mode 1 silently does not work.",
+    "package": "mobile",
+    "file": "src/store/useRemoteChangeStore.ts",
+    "from": "      const presence = await announcePresence(api, batteryId);",
+    "to": "      const presence = null as Awaited<ReturnType<typeof announcePresence>>;"
+  },
+  {
+    "name": "the PIN pad completes on the first digit",
+    "why": "Spends one attempt per keypress and locks a legitimate user out mid-entry.",
+    "package": "mobile",
+    "file": "src/ui/PinPad.tsx",
+    "from": "if (next.length === PIN_DIGITS) onComplete?.(next);",
+    "to": "if (next.length >= 1) onComplete?.(next);"
+  },
+  {
+    "name": "the PIN gate on critical writes is removed",
+    "why": "PRD §6.2's re-authentication step, applied to the most dangerous parameters.",
+    "package": "mobile",
+    "file": "app/write/[parameterKey].tsx",
+    "from": "  const pinRequired = critical && pinSet;",
+    "to": "  const pinRequired = false;"
+  },
+  {
+    "name": "an on-site write is not pushed until the next link",
+    "why": "A technician who disconnects carries the only record away with them.",
+    "package": "mobile",
+    "file": "app/write/[parameterKey].tsx",
+    "from": "    if (batteryId) void useActivityStore.getState().sync(batteryId);",
+    "to": ""
+  },
+  {
+    "name": "the dashboard asserts a support session again",
+    "why": "The busiest screen claiming an administrator is in session with the pack.",
+    "package": "mobile",
+    "file": "app/(tabs)/index.tsx",
+    "from": "value={describeSupport(supportState)}",
+    "to": "value=\"SS-4471 active\""
+  },
+  {
+    "name": "the device screen invents a gateway serial again",
+    "why": "A technician reads it as the device in their hand.",
+    "package": "mobile",
+    "file": "app/device.tsx",
+    "from": "<DataRow label=\"Device ID\" value={unknown} />",
+    "to": "<DataRow label=\"Device ID\" value=\"KYE-000184\" />"
+  },
+  {
+    "name": "the stale banner conflates never-received with went-stale",
+    "why": "Two different statements about whether data ever arrived.",
+    "package": "mobile",
+    "file": "src/ui/StaleBanner.tsx",
+    "from": "  const never = !Number.isFinite(freshness.ageMs);",
+    "to": "  const never = false;"
+  },
+  {
+    "name": "the fleet list invents a state of charge",
+    "why": "A bare percentage reads as current; the age beside it is the honesty.",
+    "package": "mobile",
+    "file": "src/store/useFleetStore.ts",
+    "from": "  if (!reading) return { soc: null, age: 'Never reported', tone: 'neutral' };",
+    "to": "  if (!reading) return { soc: 0, age: '', tone: 'neutral' };"
+  },
+  {
+    "name": "the session store invents a company name",
+    "why": "Every tenant seeing the same wrong name in their header.",
+    "package": "mobile",
+    "file": "src/store/sessionStorage.ts",
+    "from": "      company: parsed.company ?? '',",
+    "to": "      company: parsed.company ?? 'Aurora Fleet',"
+  },
+  {
+    "name": "the console's fetch is unbound",
+    "why": "Browsers refuse it; every test injects a double and never takes this branch.",
+    "package": "console",
+    "file": "src/api/client.ts",
+    "from": "    return this.options.fetchImpl ?? globalThis.fetch.bind(globalThis);",
+    "to": "    return this.options.fetchImpl ?? globalThis.fetch;"
+  },
+  {
+    "name": "concurrent 401s each spend the refresh token",
+    "why": "The backend revokes the whole chain, signing an administrator out mid-task.",
+    "package": "console",
+    "file": "src/api/client.ts",
+    "from": "    if (this.refreshing) return this.refreshing;",
+    "to": ""
+  },
+  {
+    "name": "the audit filter stops reaching the server",
+    "why": "The trail is capped, so narrowing a fetched page hides everything older.",
+    "package": "console",
+    "file": "src/api/audit.ts",
+    "from": "  if (filter.batteryId) query.set('batteryId', filter.batteryId);",
+    "to": ""
+  },
+  {
+    "name": "a queued change is reported as sent",
+    "why": "Issuing a change is not making one; Mode 1 rests on the difference.",
+    "package": "console",
+    "file": "src/api/support.ts",
+    "from": "        text: 'Queued. Nobody is linked to this battery, so it will wait until someone is.',",
+    "to": "        text: 'Change applied successfully.',"
+  },
+  {
+    "name": "the Force Push caveat is dropped",
+    "why": "It jumps the queue; it does not conjure a technician, and must say so.",
+    "package": "console",
+    "file": "src/api/support.ts",
+    "from": " It does not deliver it any sooner: a technician still has to be linked to the battery.",
+    "to": ""
+  },
+  {
+    "name": "a technician is admitted to the console",
+    "why": "Not their tool; they are told so rather than shown empty panels.",
+    "package": "console",
+    "file": "src/store/session.ts",
+    "from": "  return role === 'admin' || role === 'company';",
+    "to": "  return true;"
+  },
+  {
+    "name": "chart lines are drawn through reporting gaps",
+    "why": "Asserts a state of charge for a period nobody measured.",
+    "package": "console",
+    "file": "src/api/history.ts",
+    "from": "      const command = i === 0 || breaks.has(i - 1) ? 'M' : 'L';",
+    "to": "      const command = i === 0 ? 'M' : 'L';"
+  },
+  {
+    "name": "user creation sends a password again",
+    "why": "An administrator would know somebody else's credential.",
+    "package": "console",
+    "file": "src/pages/Users.tsx",
+    "from": "      const created = await inviteUser(api, {",
+    "to": "      const created = await inviteUser(api, {\n        password: 'a-chosen-password',"
+  },
+  {
+    "name": "a reused refresh token does not revoke the chain",
+    "why": "Reuse means the token was stolen or replayed; revoking the chain is the response.",
+    "package": "backend",
+    "file": "src/auth/tokens.ts",
+    "from": "    revokeAllForUser(store, row.user_id, now);",
+    "to": ""
+  },
+  {
+    "name": "a malformed password hash verifies instead of failing closed",
+    "why": "An invited account's placeholder must never authenticate.",
+    "package": "backend",
+    "file": "src/auth/password.ts",
+    "from": "  if (parts.length !== 6 || parts[0] !== 'scrypt') return false;",
+    "to": ""
+  },
+  {
+    "name": "a non-admin may change an admin-only parameter",
+    "why": "Cell count and over-current are admin-only for a reason.",
+    "package": "backend",
+    "file": "src/policy/engine.ts",
+    "from": "  if (definition.requiresAdmin && principal.role !== 'admin') {",
+    "to": "  if (false) {"
+  },
+  {
+    "name": "a write is permitted with no BLE session",
+    "why": "PRD §7.3: nothing reaches a BMS without somebody at the pack.",
+    "package": "backend",
+    "file": "src/policy/engine.ts",
+    "from": "  if (!request.bleSessionActive) {",
+    "to": "  if (false) {"
+  },
+  {
+    "name": "tenant queries drop their company clause",
+    "why": "Every tenant would see every other tenant's rows.",
+    "package": "backend",
+    "file": "src/db/tenancy.ts",
+    "from": "    sql += ` WHERE ${table}.company_id = ?`;",
+    "to": ""
+  },
+  {
+    "name": "suspension leaves refresh tokens alive",
+    "why": "A suspended account keeps working until its token expires.",
+    "package": "backend",
+    "file": "src/admin/service.ts",
+    "from": "  if (status === 'suspended') revokeAllForUser(store, userId, now);",
+    "to": ""
+  },
+  {
+    "name": "server-side ingest drops a fault transition",
+    "why": "The second copy of the rule that protects the moment a fault appeared.",
+    "package": "backend",
+    "file": "src/telemetry/service.ts",
+    "from": "      if (!dueBySchedule && !changedState) continue;",
+    "to": "      if (!dueBySchedule) continue;"
+  },
+  {
+    "name": "the migration stops being atomic",
+    "why": "A part-applied schema is skipped by IF NOT EXISTS forever after.",
+    "package": "backend",
+    "file": "src/db/client.ts",
+    "from": "  db.exec('BEGIN');",
+    "to": ""
+  },
+  {
+    "name": "a timed-out write is reported as failed rather than unknown",
+    "why": "Nobody knows whether the BMS applied it; saying either is inventing a fact.",
+    "package": "mobile",
+    "file": "src/telemetry/writeOutcome.ts",
+    "from": "      outcome: 'indeterminate',",
+    "to": "      outcome: 'rejected',"
+  },
+  {
+    "name": "the audit cap drops entries the server never accepted",
+    "why": "Those are the only copy that a change reached a physical battery.",
+    "package": "mobile",
+    "file": "src/store/auditStorage.ts",
+    "from": "    if (overCap && entry.synced === true) {",
+    "to": "    if (overCap) {"
+  },
+  {
+    "name": "the app trusts its bundled bounds over the server's",
+    "why": "PRD §5.2 puts the boundary server-side; the bundled file is presentation.",
+    "package": "mobile",
+    "file": "src/api/parameters.ts",
+    "from": "      min: s.minValue,",
+    "to": "      min: p.min,"
+  },
+  {
+    "name": "a gauge can be told to hide its number",
+    "why": "The digits outrank the needle; a dial with no readout is decoration.",
+    "package": "mobile",
+    "file": "src/gauge/Gauge.tsx",
+    "from": "          <Text style={[T.metricValue, { color: p.inkStrong }]}>{readout}</Text>",
+    "to": "          {null}"
+  },
+  {
+    "name": "login never applies the device cap",
+    "why": "The rule exists and the route ignores it — a guard and its call site are two changes.",
+    "package": "backend",
+    "file": "src/server.ts",
+    "from": "const evicted = enforceDeviceLimit(store, user);",
+    "to": "const evicted: ReturnType<typeof enforceDeviceLimit> = [];"
+  },
+  {
+    "name": "device cap is off by one",
+    "why": "A cap of two that admits three is a cap nobody bought.",
+    "package": "backend",
+    "file": "src/auth/sessionDevices.ts",
+    "from": "if (excess <= 0) return [];",
+    "to": "if (excess < 0) return [];"
+  },
+  {
+    "name": "eviction takes the newest device, not the oldest",
+    "why": "The person signing in is signed out by their own sign-in.",
+    "package": "backend",
+    "file": "src/auth/sessionDevices.ts",
+    "from": "const evicting = live.slice(-excess);",
+    "to": "const evicting = live.slice(0, excess);"
+  },
+  {
+    "name": "device cap applies to field users and admins",
+    "why": "A technician with a phone and a tablet loses one at every sign-in.",
+    "package": "backend",
+    "file": "src/auth/sessionDevices.ts",
+    "from": "if (!CAPPED_ROLES.has(user.role)) return [];",
+    "to": "if (false) return [];"
+  },
+  {
+    "name": "signed-out sessions still count against the cap",
+    "why": "Signing out on one device would stop freeing a slot on another.",
+    "package": "backend",
+    "file": "src/auth/sessionDevices.ts",
+    "from": "AND revoked_at IS NULL AND expires_at > ?",
+    "to": "AND expires_at > ?"
+  },
+  {
+    "name": "the session cap is stored as the gateway limit",
+    "why": "Two different things called 'device'; conflating them is the standing hazard.",
+    "package": "backend",
+    "file": "src/admin/entitlement.ts",
+    "from": "sets.push('session_device_limit = ?');",
+    "to": "sets.push('device_limit = ?');"
+  },
+  {
+    "name": "a wrong password signs the real owner out",
+    "why": "A stranger who knows an email address gets a free denial of service.",
+    "package": "backend",
+    "file": "src/server.ts",
+    "from": "    if (!user || !valid || user.status !== 'active') {",
+    "to": "    if (user) enforceDeviceLimit(store, user);\n    if (!user || !valid || user.status !== 'active') {"
+  },
+  {
+    "name": "a renewal loses the device's name",
+    "why": "After fifteen minutes every device becomes 'an unrecognised device'.",
+    "package": "backend",
+    "file": "src/auth/tokens.ts",
+    "from": "    const next = issueRefreshToken(store, row.user_id, now, row.device_label ?? null);",
+    "to": "    const next = issueRefreshToken(store, row.user_id, now, null);"
+  },
+  {
+    "name": "devices are signed out silently",
+    "why": "Evicting rather than refusing is only defensible if the person is told.",
+    "package": "backend",
+    "file": "src/server.ts",
+    "from": "      signedOut: evicted.map((device) => describeDevice(device)),",
+    "to": "      signedOut: [],"
+  },
+  {
+    "name": "console sends the sign-in cap as the gateway limit",
+    "why": "Raising one silently raises the other.",
+    "package": "console",
+    "file": "src/pages/Companies.tsx",
+    "from": "          deviceLimit: deviceLimitValue,\n          sessionDeviceLimit: sessionDeviceValue,\n        });\n        setNotice(`${company.name} updated.",
+    "to": "          deviceLimit: sessionDeviceValue,\n        });\n        setNotice(`${company.name} updated."
+  },
+  {
+    "name": "console pre-fills the sign-in cap from the gateway limit",
+    "why": "An admin who accepts every prompt raises a cap of two to forty.",
+    "package": "console",
+    "file": "src/pages/Companies.tsx",
+    "from": "      current?.sessionDeviceLimit ?? DEFAULT_SESSION_DEVICES",
+    "to": "      current?.deviceLimit ?? DEFAULT_SESSION_DEVICES"
+  },
+  {
+    "name": "console shows the gateway figure in the sign-ins column",
+    "why": "The two columns exist precisely to keep them apart.",
+    "package": "console",
+    "file": "src/pages/Companies.tsx",
+    "from": "                    <td className=\"figure\">{usage(e?.sessionDevices)}</td>",
+    "to": "                    <td className=\"figure\">{usage(e?.devices)}</td>"
+  },
+  {
+    "name": "console applies a change after Cancel",
+    "why": "Half a change, applied because somebody backed out, is worse than none.",
+    "package": "console",
+    "file": "src/pages/Companies.tsx",
+    "from": "    if (sessionDeviceValue === null) return;",
+    "to": "    if (false) return;"
+  },
+  {
+    "name": "app reports a blocked company as a network problem",
+    "why": "Sends a technician to debug their signal instead of ringing their administrator.",
+    "package": "mobile",
+    "file": "src/api/auth.ts",
+    "from": "    if (error.status === 403) {\n      return { kind: 'blocked', detail: error.body.message || MESSAGES.blocked };\n    }",
+    "to": ""
+  },
+  {
+    "name": "app drops the server's reason for refusing",
+    "why": "Expired, cancelled and suspended need different actions and would read alike.",
+    "package": "mobile",
+    "file": "src/api/auth.ts",
+    "from": "    const message = failure.kind === 'blocked' ? failure.detail : MESSAGES[failure.kind];",
+    "to": "    const message = MESSAGES[failure.kind];"
+  },
+  {
+    "name": "app drops the signed-out notice",
+    "why": "The one signal that somebody else is using the account.",
+    "package": "mobile",
+    "file": "src/store/useSessionStore.ts",
+    "from": "        signedOut: result.signedOut ?? [],",
+    "to": "        signedOut: [],"
+  },
+  {
+    "name": "app keeps the last person's signed-out notice",
+    "why": "Tells the next user about a device on an account that is not theirs.",
+    "package": "mobile",
+    "file": "src/store/useSessionStore.ts",
+    "from": "      // The next person to sign in must not inherit the last one's notice.\n      signedOut: [],",
+    "to": ""
+  },
+  {
+    "name": "app's signed-out banner omits what to do",
+    "why": "'Somebody signed you out' without 'change the password' is a shrug.",
+    "package": "mobile",
+    "file": "src/ui/SignedOutBanner.tsx",
+    "from": "change its password.",
+    "to": "contact support."
+  },
+  {
+    "name": "the gateway limit shown is not the one enforced",
+    "why": "The console displayed a cap of two on a company the server let register a thousand.",
+    "package": "backend",
+    "file": "src/admin/entitlement.ts",
+    "from": "    deviceLimit: subscription.device_limit,",
+    "to": "    deviceLimit: subscription.device_limit ?? DEFAULT_DEVICE_LIMIT,"
+  },
+  {
+    "name": "a company is created with no gateway cap at all",
+    "why": "Creating from the console gave unlimited gateways while the plan claimed a limit.",
+    "package": "backend",
+    "file": "src/admin/service.ts",
+    "from": "input.deviceLimit === undefined ? DEFAULT_DEVICE_LIMIT : input.deviceLimit,",
+    "to": "input.deviceLimit ?? null,"
+  },
+  {
+    "name": "an explicit 'no limit' is overridden by the default",
+    "why": "An administrator saying no limit is different from not being asked.",
+    "package": "backend",
+    "file": "src/admin/service.ts",
+    "from": "input.deviceLimit === undefined ? DEFAULT_DEVICE_LIMIT : input.deviceLimit,",
+    "to": "input.deviceLimit ?? DEFAULT_DEVICE_LIMIT,"
+  }
+]

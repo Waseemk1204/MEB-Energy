@@ -1,0 +1,83 @@
+/*
+ * The Bentley cluster language, carried onto a desktop console.
+ *
+ * The two materials keep their meaning from the app:
+ *   · leather — pinned chrome. The masthead and the rail: always present,
+ *     never scrolls, and it is where you are told *where* you are.
+ *   · cream panel — data and controls. It scrolls, and it is where the
+ *     answers live.
+ *
+ * Stitch is the only border. There are no grey hairlines, no card outlines
+ * and no shadows doing a border's job — a rule inherited from the app, and
+ * the reason the console reads as the same product.
+ *
+ * Values are copied from mobile/src/theme/tokens.ts, including the corrections
+ * made there after the contrast audit. Two copies of a palette is one too many;
+ * a parity test guards them the way the capability profile is guarded.
+ */
+
+:root {
+  --leather-1: #d2b189;
+  --leather-2: #c39d71;
+  --leather-3: #b58f62;
+  --leather-stitch: #efe0c4;
+  --leather-ink: #24180a;
+  --leather-ink-soft: #3a2b19;
+
+  --panel-base: #fcfaf5;
+  --panel-alt: #f4eee2;
+  --panel-stitch: #e4d8c2;
+
+  --ink-strong: #241809;
+  --ink-soft: #6e5b44;
+  --ink-faint: #776b58;
+
+  --accent: #8b6238;
+  --good: #4d764c;
+  --warn: #936217;
+  --critical: #a63b27;
+
+  --nav-pill: #43301a;
+  --nav-pill-ink: #f6eddb;
+  --nav-inactive: #7f715e;
+  --backdrop: #ede4d3;
+
+  --panel-shadow: rgba(60, 40, 15, 0.1);
+
+  /* Type. Space Grotesk for figures, Inter for prose, Fraunces for the wordmark. */
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-figure: 'Space Grotesk', 'SF Mono', ui-monospace, monospace;
+  --font-text: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --radius: 10px;
+  --gutter: 24px;
+}
+
+[data-theme='dark'] {
+  --leather-1: #262019;
+  --leather-2: #1a1611;
+  --leather-3: #100d09;
+  --leather-stitch: #4b3e2c;
+  --leather-ink: #f3e9d9;
+  --leather-ink-soft: #b39a72;
+
+  --panel-base: #191510;
+  --panel-alt: #211c15;
+  --panel-stitch: #362e22;
+
+  --ink-strong: #f3e9d9;
+  --ink-soft: #b3a48a;
+  --ink-faint: #8f826f;
+
+  --accent: #d6ad73;
+  --good: #8ac78e;
+  --warn: #dca84e;
+  --critical: #e2775c;
+
+  --nav-pill: #d6ad73;
+  --nav-pill-ink: #171310;
+  --nav-inactive: #867e73;
+  --backdrop: #0a0908;
+
+  --panel-shadow: rgba(0, 0, 0, 0.45);
+}

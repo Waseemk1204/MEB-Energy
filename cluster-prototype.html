@@ -1,0 +1,664 @@
+<title>knowyourEV Cluster</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+
+<style>
+:root{
+  --ground:#E9DECA; --ground2:#DFD2B9; --rail:#FBF7EF; --railEdge:#DCCDB2;
+  --railInk:#2E2415; --railSoft:#6E5B44; --railFaint:#A8967C; --railAccent:#8B6238;
+  --bezel:#171310; --bezelEdge:#3A3128;
+  --lea1:#D2B189; --lea2:#C09A6C; --lea3:#AD875A;
+  --leaStitch:#EFE0C4; --leaInk:#24180A; --leaInkSoft:#5B4526;
+  --leaTrack:#E6D6BA; --leaNeedle:#F6EDDB; --leaHub:#3A2A17;
+  --pnl:#FCFAF5; --pnlAlt:#F4EEE2; --pnlStitch:#E4D8C2; --pnlTrack:#E9DFCC; --pnlNeedle:#3A2A17;
+  --ink:#241809; --inkSoft:#6E5B44; --inkFaint:#A8967C;
+  --accent:#8B6238; --good:#4F7A4E; --warn:#B5791D; --crit:#A63B27;
+  --navPill:#43301A; --navPillInk:#F6EDDB; --navInactive:#A8967C;
+  --shadow:0 26px 60px rgba(72,48,16,.30);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0C0A08; --ground2:#141110; --rail:#151210; --railEdge:#2C2519;
+    --railInk:#EFE4D2; --railSoft:#AC9C82; --railFaint:#77694F; --railAccent:#D6AD73;
+    --bezel:#000; --bezelEdge:#26211B;
+    --lea1:#262019; --lea2:#1A1611; --lea3:#100D09;
+    --leaStitch:#4B3E2C; --leaInk:#F3E9D9; --leaInkSoft:#B39A72;
+    --leaTrack:#33291D; --leaNeedle:#E8C088; --leaHub:#0E0B08;
+    --pnl:#191510; --pnlAlt:#211C15; --pnlStitch:#362E22; --pnlTrack:#2E271D; --pnlNeedle:#E8C088;
+    --ink:#F3E9D9; --inkSoft:#B3A48A; --inkFaint:#7A6B55;
+    --accent:#D6AD73; --good:#8AC78E; --warn:#DCA84E; --crit:#E2775C;
+    --navPill:#D6AD73; --navPillInk:#171310; --navInactive:#6B6153;
+    --shadow:0 26px 60px rgba(0,0,0,.62);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0C0A08; --ground2:#141110; --rail:#151210; --railEdge:#2C2519;
+  --railInk:#EFE4D2; --railSoft:#AC9C82; --railFaint:#77694F; --railAccent:#D6AD73;
+  --bezel:#000; --bezelEdge:#26211B;
+  --lea1:#262019; --lea2:#1A1611; --lea3:#100D09;
+  --leaStitch:#4B3E2C; --leaInk:#F3E9D9; --leaInkSoft:#B39A72;
+  --leaTrack:#33291D; --leaNeedle:#E8C088; --leaHub:#0E0B08;
+  --pnl:#191510; --pnlAlt:#211C15; --pnlStitch:#362E22; --pnlTrack:#2E271D; --pnlNeedle:#E8C088;
+  --ink:#F3E9D9; --inkSoft:#B3A48A; --inkFaint:#7A6B55;
+  --accent:#D6AD73; --good:#8AC78E; --warn:#DCA84E; --crit:#E2775C;
+  --navPill:#D6AD73; --navPillInk:#171310; --navInactive:#6B6153;
+  --shadow:0 26px 60px rgba(0,0,0,.62);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground);
+  background-image:radial-gradient(120% 80% at 50% -10%, var(--ground2) 0%, var(--ground) 62%);
+  color:var(--railInk);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:34px 22px 60px;display:grid;grid-template-columns:400px 1fr;gap:44px;align-items:start}
+@media(max-width:920px){.wrap{grid-template-columns:1fr;gap:34px;padding:24px 16px 48px}}
+
+/* ---------- page head ---------- */
+.head{grid-column:1/-1;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:4px}
+.eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--railFaint)}
+h1{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:31px;margin:6px 0 5px;color:var(--railInk);letter-spacing:.2px;text-wrap:balance}
+.sub{font-size:13.5px;color:var(--railSoft);max-width:58ch;line-height:1.55;margin:0}
+.toggle{display:inline-flex;gap:2px;background:var(--rail);border:1px solid var(--railEdge);border-radius:999px;padding:3px}
+.toggle button{font:600 11px/1 Inter,sans-serif;letter-spacing:.1em;text-transform:uppercase;border:0;background:none;color:var(--railFaint);padding:8px 14px;border-radius:999px;cursor:pointer}
+.toggle button[aria-pressed="true"]{background:var(--navPill);color:var(--navPillInk)}
+.toggle button:focus-visible{outline:2px solid var(--railAccent);outline-offset:2px}
+
+/* ---------- phone ---------- */
+.phone{width:400px;max-width:100%;border-radius:52px;background:var(--bezel);border:1px solid var(--bezelEdge);padding:11px;box-shadow:var(--shadow)}
+.screen{position:relative;border-radius:42px;overflow:hidden;background:var(--pnl);height:800px;display:flex;flex-direction:column}
+.notch{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:104px;height:26px;border-radius:999px;background:var(--bezel);z-index:9}
+.statusbar{display:flex;justify-content:space-between;align-items:center;padding:15px 24px 0;font:600 12.5px/1 Inter,sans-serif;color:var(--leaInk);position:relative;z-index:8;flex:0 0 auto}
+.statusbar .dots{display:flex;gap:5px;align-items:center;opacity:.75}
+.statusbar .bar{width:3px;background:currentColor;border-radius:1px}
+.body{flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:none}
+.body::-webkit-scrollbar{display:none}
+
+/* leather + cream */
+.leather{background:linear-gradient(163deg,var(--lea1) 0%,var(--lea2) 52%,var(--lea3) 100%);position:relative}
+.leather::after,.stitched::after{content:"";position:absolute;inset:9px;border:2px dashed var(--leaStitch);border-radius:inherit;opacity:.85;pointer-events:none}
+.leather::after{border-radius:0 0 26px 26px}
+.cream{background:var(--pnl);border-radius:28px 28px 0 0;margin-top:-2px;position:relative;z-index:2;box-shadow:0 -8px 24px rgba(60,40,15,.09)}
+.card{background:var(--pnl);border-radius:20px;position:relative}
+.card.alt{background:var(--pnlAlt)}
+.card::after{content:"";position:absolute;inset:9px;border:2px dashed var(--pnlStitch);border-radius:11px;pointer-events:none;opacity:.9}
+
+/* header block */
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 24px 14px}
+.co{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:26px;letter-spacing:-.5px;text-transform:uppercase;color:var(--leaInk);line-height:1}
+.batid{font:500 11.5px/1 Inter,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--leaInkSoft);margin-top:7px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--leaInk);border-radius:7px;padding:4px 8px;color:var(--leaInk);font:700 12.5px/1 "Space Grotesk",sans-serif;font-variant-numeric:tabular-nums}
+.chip .cell{width:15px;height:8px;border-radius:1.5px;background:var(--leaInk);opacity:.85}
+.rng{font:600 10px/1 Inter,sans-serif;letter-spacing:.14em;color:var(--leaInkSoft);margin-top:7px;text-align:right}
+
+.metrics{display:flex;justify-content:space-around;padding:20px 8px 6px}
+.divider{height:1px;background:var(--pnlStitch);margin:6px 22px}
+.facts{display:flex;padding:15px 18px 17px;gap:8px}
+.fact{flex:1;text-align:center}
+.fact dt{font:700 9.5px/1 Inter,sans-serif;letter-spacing:.13em;text-transform:uppercase;color:var(--inkFaint)}
+.fact dd{margin:6px 0 0;font:700 15px/1.2 "Space Grotesk",sans-serif;color:var(--ink);font-variant-numeric:tabular-nums}
+.fact dd small{display:block;font:500 11px/1.3 Inter,sans-serif;margin-top:3px;color:var(--inkSoft)}
+
+.pad{padding:0 20px 18px}
+.seclabel{font:700 10.5px/1 Inter,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:var(--inkFaint);margin:20px 0 9px 3px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 15px}
+.row + .row{border-top:1px solid var(--pnlStitch)}
+.row .l{display:flex;align-items:center;gap:9px;font:500 13.5px/1.3 Inter,sans-serif;color:var(--ink)}
+.row .v{font:600 13px/1 "Space Grotesk",sans-serif;color:var(--inkSoft);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dot{width:7px;height:7px;border-radius:99px;flex:0 0 auto}
+.tag{font:700 8.5px/1 Inter,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:var(--inkFaint);border:1px solid var(--pnlStitch);border-radius:999px;padding:3px 6px}
+
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.cellcard{padding:13px 4px;text-align:center;border-radius:15px}
+.cellcard::after{border-radius:7px;inset:6px}
+.cellcard .n{font:600 9.5px/1 Inter,sans-serif;letter-spacing:.09em;color:var(--inkFaint)}
+.cellcard .v{font:700 15px/1 "Space Grotesk",sans-serif;color:var(--ink);margin-top:5px;font-variant-numeric:tabular-nums}
+.cellcard .b{font:700 8px/1 Inter,sans-serif;letter-spacing:.09em;color:var(--accent);margin-top:4px;height:8px}
+.cellcard.edge{box-shadow:inset 0 0 0 1.5px var(--accent)}
+
+.banner{display:flex;gap:11px;align-items:flex-start;background:var(--pnlAlt);border-left:3px solid var(--accent);border-radius:12px;padding:12px 14px;margin:16px 20px 0}
+.banner p{margin:0;font:500 11.5px/1.5 Inter,sans-serif;color:var(--inkSoft)}
+.banner b{color:var(--ink);font-weight:600}
+.locate{display:flex;align-items:center;gap:11px;padding:14px 16px;margin:14px 20px 22px;border-radius:14px;background:var(--pnlAlt);opacity:.72}
+.locate span{font:500 11.5px/1.45 Inter,sans-serif;color:var(--inkFaint)}
+
+.seg{display:flex;gap:4px;background:var(--pnlAlt);border-radius:999px;padding:3px;margin-top:14px}
+.seg button{flex:1;border:0;background:none;padding:8px 0;border-radius:999px;font:600 11px/1 Inter,sans-serif;letter-spacing:.07em;text-transform:uppercase;color:var(--inkFaint);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--navPill);color:var(--navPillInk)}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+.scrtitle{padding:16px 22px 18px}
+.scrtitle h2{margin:0;font:700 24px/1 "Space Grotesk",sans-serif;letter-spacing:-.4px;text-transform:uppercase;color:var(--leaInk)}
+.scrtitle p{margin:7px 0 0;font:500 11.5px/1 Inter,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--leaInkSoft)}
+
+/* tab bar */
+.tabs{display:flex;justify-content:space-around;align-items:center;padding:9px 6px 20px;background:var(--pnl);border-top:1px solid var(--pnlStitch);flex:0 0 auto}
+.tabs button{display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:0;cursor:pointer;padding:4px 12px;min-width:64px;min-height:48px}
+.tabs .pill{width:44px;height:28px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--navInactive)}
+.tabs button[aria-selected="true"] .pill{background:var(--navPill);color:var(--navPillInk)}
+.tabs .lbl{font:600 9.5px/1 Inter,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--navInactive)}
+.tabs button[aria-selected="true"] .lbl{color:var(--ink)}
+.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:14px}
+
+/* ---------- spec rail ---------- */
+.spec{display:flex;flex-direction:column;gap:22px;padding-top:6px}
+.specblk{background:var(--rail);border:1px solid var(--railEdge);border-radius:16px;padding:20px 22px}
+.specblk h3{margin:0 0 3px;font:700 12px/1 Inter,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--railAccent)}
+.specblk .note{margin:0 0 15px;font:400 12.5px/1.55 Inter,sans-serif;color:var(--railSoft)}
+.kv{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px 16px;font-size:12.5px}
+.kv dt{color:var(--railSoft);line-height:1.45}
+.kv dd{margin:0;font-family:"Space Grotesk",sans-serif;font-weight:600;color:var(--railInk);text-align:right;font-variant-numeric:tabular-nums;line-height:1.45;white-space:nowrap}
+.rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px}
+.rules li{display:grid;grid-template-columns:22px 1fr;gap:11px;font-size:12.5px;line-height:1.55;color:var(--railSoft)}
+.rules b{display:block;color:var(--railInk);font-weight:600}
+.num{font:700 10px/22px "Space Grotesk",sans-serif;text-align:center;color:var(--navPillInk);background:var(--navPill);border-radius:6px;height:22px}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:10px}
+.sw{display:flex;flex-direction:column;gap:6px}
+.sw i{height:34px;border-radius:8px;border:1px solid rgba(120,90,45,.16)}
+.sw span{font:600 9.5px/1.3 Inter,sans-serif;letter-spacing:.04em;color:var(--railFaint)}
+.sw code{font:500 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--railSoft)}
+.foot{grid-column:1/-1;font-size:12px;color:var(--railFaint);line-height:1.6;border-top:1px solid var(--railEdge);padding-top:18px;margin-top:8px}
+.foot code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--railSoft)}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <div>
+      <div class="eyebrow">Design language reference · Phase 1 mobile</div>
+      <h1>knowyourEV instrument cluster</h1>
+      <p class="sub">Live prototype of the tan-leather cluster: 2 Hz simulated telemetry from a JBD SP24S004 24S LiFePO4 pack, spring-damped needles, and the same material rules carried onto three more screens.</p>
+    </div>
+    <div class="toggle" role="group" aria-label="Theme">
+      <button id="tLight" aria-pressed="true">Tan</button>
+      <button id="tDark" aria-pressed="false">Black</button>
+    </div>
+  </header>
+
+  <div class="phone">
+    <div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar" id="statusbar">
+        <span>9:41</span>
+        <span class="dots" aria-hidden="true">
+          <i class="bar" style="height:5px"></i><i class="bar" style="height:7px"></i>
+          <i class="bar" style="height:9px"></i><i class="bar" style="height:11px"></i>
+        </span>
+      </div>
+      <div class="body" id="body"></div>
+      <div class="tabs" id="tabs" role="tablist"></div>
+    </div>
+  </div>
+
+  <div class="spec">
+    <section class="specblk">
+      <h3>Hero gauge</h3>
+      <p class="note">State of charge. One hero per screen, never more.</p>
+      <dl class="kv">
+        <dt>Sweep</dt><dd>−135° → +135°</dd>
+        <dt>Ring radius / stroke</dt><dd>0.40s / 0.055s</dd>
+        <dt>Major ticks (labelled)</dt><dd>every 10</dd>
+        <dt>Minor ticks</dt><dd>every 2</dd>
+        <dt>Danger zone</dt><dd>0–15 %</dd>
+        <dt>Needle taper</dt><dd>0.030s → 0.006s</dd>
+      </dl>
+    </section>
+
+    <section class="specblk">
+      <h3>Metric gauges</h3>
+      <p class="note">Digits sit above the arc. Axes derive from the capability profile — never from the Tesla mock's 0–450 V.</p>
+      <dl class="kv">
+        <dt>Sweep</dt><dd>−115° → +115°</dd>
+        <dt>Pack current (2 × 200 A SKU)</dt><dd>−400 … +400 A</dd>
+        <dt>Pack voltage (24 × UVP…OVP)</dt><dd>62.4 … 90.0 V</dd>
+        <dt>Bipolar zero</dt><dd>12 o'clock</dd>
+        <dt>Needle spring</dt><dd>d 14 · k 90 · m 0.6</dd>
+        <dt>Telemetry cadence</dt><dd>2 Hz</dd>
+      </dl>
+    </section>
+
+    <section class="specblk">
+      <h3>The four rules</h3>
+      <p class="note">Apply these and any new screen lands in the same language.</p>
+      <ol class="rules">
+        <li><span class="num">1</span><span><b>Two materials, two meanings.</b> Leather = live instrumentation and stays pinned. Cream = data and controls and always scrolls.</span></li>
+        <li><span class="num">2</span><span><b>The stitch is the only border.</b> Dashed, inset 9 pt. No card hairlines, no Material shadows.</span></li>
+        <li><span class="num">3</span><span><b>Digits outrank the needle.</b> Every gauge ships a numeric readout with no prop able to suppress it — a misread protection threshold is a fire risk.</span></li>
+        <li><span class="num">4</span><span><b>Detail data stays tabular.</b> Cells, faults and parameters are rows. Gauges never appear on a list screen.</span></li>
+      </ol>
+    </section>
+
+    <section class="specblk">
+      <h3>Palette</h3>
+      <p class="note">Both themes are complete token sets, not an inversion.</p>
+      <div class="swatches">
+        <div class="sw"><i style="background:linear-gradient(150deg,var(--lea1),var(--lea3))"></i><span>Leather</span><code>#C09A6C</code></div>
+        <div class="sw"><i style="background:var(--leaStitch)"></i><span>Stitch</span><code>#EFE0C4</code></div>
+        <div class="sw"><i style="background:var(--pnl);border-color:var(--pnlStitch)"></i><span>Panel</span><code>#FCFAF5</code></div>
+        <div class="sw"><i style="background:var(--ink)"></i><span>Ink</span><code>#241809</code></div>
+        <div class="sw"><i style="background:var(--accent)"></i><span>Accent</span><code>#8B6238</code></div>
+        <div class="sw"><i style="background:var(--good)"></i><span>Good</span><code>#4F7A4E</code></div>
+        <div class="sw"><i style="background:var(--warn)"></i><span>Warn</span><code>#B5791D</code></div>
+        <div class="sw"><i style="background:var(--crit)"></i><span>Critical</span><code>#A63B27</code></div>
+      </div>
+    </section>
+  </div>
+
+  <p class="foot">Telemetry is a seeded simulation, not a real pack: a coulomb counter integrates pack current against 100 Ah while cell voltages ride a LiFePO4 OCV curve with a 0.4 mΩ IR drop, so SOC, voltage and current move together the way hardware does. Values are illustrative. Full specification in <code>UI_PLAN.md</code>; the build prompt in <code>FRONTEND_PROMPT.md</code>.</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var NS="http://www.w3.org/2000/svg";
+  function el(n,a){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);return e;}
+  function cssv(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+
+  /* ---------- polar maths (mirrors src/gauge/polar.ts) ---------- */
+  function polar(cx,cy,r,deg){var t=deg*Math.PI/180;return{x:cx+r*Math.sin(t),y:cy-r*Math.cos(t)};}
+  function arcPath(cx,cy,r,a0,a1){
+    var s=polar(cx,cy,r,a0),e=polar(cx,cy,r,a1);
+    var large=Math.abs(a1-a0)>180?1:0, sweep=a1>=a0?1:0;
+    return "M "+s.x.toFixed(2)+" "+s.y.toFixed(2)+" A "+r+" "+r+" 0 "+large+" "+sweep+" "+e.x.toFixed(2)+" "+e.y.toFixed(2);
+  }
+  function angleFor(v,min,max,a0,a1){
+    var t=Math.min(1,Math.max(0,(v-min)/(max-min)));return a0+t*(a1-a0);
+  }
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+  /* ---------- spring (damping 14, stiffness 90, mass 0.6) ---------- */
+  function Spring(v){this.v=v;this.t=v;this.vel=0;}
+  Spring.prototype.step=function(dt){
+    dt=Math.min(dt,0.032);
+    var a=(90*(this.t-this.v)-14*this.vel)/0.6;
+    this.vel+=a*dt; this.v+=this.vel*dt;
+    if(Math.abs(this.t-this.v)<0.0005&&Math.abs(this.vel)<0.0005){this.v=this.t;this.vel=0;}
+    return this.v;
+  };
+
+  /* ---------- gauge ---------- */
+  function Gauge(opts){
+    this.o=opts;
+    this.spring=new Spring(opts.value);
+    this.node=document.createElement("div");
+    this.node.style.cssText="display:flex;flex-direction:column;align-items:center";
+    this.build();
+    GAUGES.push(this);
+  }
+  Gauge.prototype.build=function(){
+    var o=this.o, hero=o.variant==="hero", s=o.size;
+    var a0=hero?-135:-115, a1=hero?135:115;
+    this.a0=a0; this.a1=a1;
+    var cx=s/2, cy=hero?s/2:s/2*0.98, r=s*0.40, sw=s*(hero?0.055:0.05);
+    this.cx=cx; this.cy=cy; this.r=r;
+    var h=hero?s:s*0.80;
+
+    if(!hero){
+      var top=document.createElement("div");
+      top.style.cssText="text-align:center;line-height:1;margin-bottom:2px";
+      this.val=document.createElement("span");
+      this.val.style.cssText="font:700 34px/1 'Space Grotesk',sans-serif;letter-spacing:-1px;color:var(--ink);font-variant-numeric:tabular-nums";
+      var u=document.createElement("span");
+      u.style.cssText="font:600 15px/1 'Space Grotesk',sans-serif;color:var(--inkSoft);margin-left:4px";
+      u.textContent=o.unit;
+      top.appendChild(this.val); top.appendChild(u);
+      this.node.appendChild(top);
+    }
+
+    var svg=el("svg",{width:s,height:h,viewBox:"0 0 "+s+" "+h});
+    svg.setAttribute("role","img");
+    svg.setAttribute("aria-label",o.label);
+    this.svg=svg;
+
+    var ink=hero?"var(--leaInkSoft)":"var(--inkFaint)";
+    var track=hero?"var(--leaTrack)":"var(--pnlTrack)";
+
+    if(o.danger) svg.appendChild(el("path",{d:arcPath(cx,cy,r,angleFor(o.danger[0],o.min,o.max,a0,a1),angleFor(o.danger[1],o.min,o.max,a0,a1)),stroke:"var(--crit)",'stroke-width':sw*1.5,fill:"none",opacity:.42,'stroke-linecap':"butt"}));
+    svg.appendChild(el("path",{d:arcPath(cx,cy,r,a0,a1),stroke:track,'stroke-width':sw,fill:"none",'stroke-linecap':"round"}));
+
+    this.arc=el("path",{stroke:hero?"var(--leaNeedle)":"var(--accent)",'stroke-width':sw,fill:"none",'stroke-linecap':"round",opacity:hero?.55:.62});
+    svg.appendChild(this.arc);
+
+    // minor ticks
+    if(hero){
+      for(var m=o.min;m<=o.max;m+=o.minor){
+        if(Math.abs(m/o.major-Math.round(m/o.major))<1e-6) continue;
+        var ang=angleFor(m,o.min,o.max,a0,a1);
+        var p1=polar(cx,cy,r+sw*0.55,ang), p2=polar(cx,cy,r+sw*0.55+s*0.022,ang);
+        svg.appendChild(el("line",{x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y,stroke:ink,'stroke-width':1,opacity:.5}));
+      }
+    }
+    // major ticks + labels inside the ring
+    for(var v=o.min;v<=o.max+1e-6;v+=o.major){
+      var A=angleFor(v,o.min,o.max,a0,a1);
+      var q1=polar(cx,cy,r+sw*0.55,A), q2=polar(cx,cy,r+sw*0.55+s*0.05,A);
+      svg.appendChild(el("line",{x1:q1.x,y1:q1.y,x2:q2.x,y2:q2.y,stroke:ink,'stroke-width':1.5}));
+      var lp=polar(cx,cy,r-s*0.115,A);
+      var tx=el("text",{x:lp.x,y:lp.y,'font-size':s*0.042,'font-family':"Inter,sans-serif",'font-weight':500,fill:ink,'text-anchor':"middle",'dominant-baseline':"middle"});
+      tx.textContent=o.fmtTick?o.fmtTick(v):Math.round(v);
+      svg.appendChild(tx);
+    }
+
+    if(o.glyph){
+      var g=polar(cx,cy,r*0.42,0);
+      var bolt=el("path",{d:"M 0 -9 L -5 1 L -1 1 L -2 9 L 5 -1 L 1 -1 Z",fill:"var(--accent)",opacity:.62,transform:"translate("+g.x+","+g.y+") scale("+(s/150)+")"});
+      svg.appendChild(bolt);
+    }
+
+    // needle
+    this.needle=el("polygon",{fill:hero?"var(--leaNeedle)":"var(--pnlNeedle)"});
+    this.needleEdge=el("line",{stroke:"rgba(0,0,0,0.28)",'stroke-width':1});
+    svg.appendChild(this.needle); svg.appendChild(this.needleEdge);
+    svg.appendChild(el("circle",{cx:cx,cy:cy,r:s*(hero?0.042:0.034),fill:hero?"var(--leaHub)":"var(--pnlNeedle)"}));
+    svg.appendChild(el("circle",{cx:cx,cy:cy,r:s*(hero?0.018:0.013),fill:hero?"var(--leaNeedle)":"var(--pnl)"}));
+
+    if(hero){
+      var line=el("text",{x:cx,y:cy-s*0.015,'text-anchor':"middle",'font-family':"'Space Grotesk',sans-serif"});
+      this.hv=el("tspan",{'font-weight':700,'font-size':s*0.26,fill:"var(--leaInk)",'letter-spacing':-1.5});
+      var hu=el("tspan",{'font-weight':600,'font-size':s*0.115,fill:"var(--leaInkSoft)",dx:3});
+      hu.textContent=o.unit;
+      line.appendChild(this.hv); line.appendChild(hu);
+      var hc=el("text",{x:cx,y:cy+s*0.085,'text-anchor':"middle",'font-family':"Inter,sans-serif",'font-weight':600,'font-size':s*0.052,'letter-spacing':4.5,fill:"var(--leaInkSoft)"});
+      hc.textContent=o.label;
+      svg.appendChild(line); svg.appendChild(hc);
+    }
+    this.node.appendChild(svg);
+
+    if(!hero){
+      var cap=document.createElement("div");
+      cap.style.cssText="font:600 10px/1 Inter,sans-serif;letter-spacing:1.6px;text-transform:uppercase;color:var(--inkSoft);margin-top:-4px";
+      cap.textContent=o.label;
+      this.node.appendChild(cap);
+    }
+    this.render(this.o.value);
+  };
+  Gauge.prototype.set=function(v){this.spring.t=clamp(v,this.o.min,this.o.max);this.o.value=v;};
+  Gauge.prototype.render=function(v){
+    var o=this.o,s=o.size,hero=o.variant==="hero";
+    var A=angleFor(v,o.min,o.max,this.a0,this.a1);
+    var from=o.bipolar?angleFor(0,o.min,o.max,this.a0,this.a1):this.a0;
+    this.arc.setAttribute("d",arcPath(this.cx,this.cy,this.r,from,A));
+    var tip=polar(this.cx,this.cy,this.r-s*0.045,A);
+    var hw=s*(hero?0.030:0.026)/2, tw=s*0.006/2;
+    var b1=polar(this.cx,this.cy,hw,A+90), b2=polar(this.cx,this.cy,hw,A-90);
+    var t1=polar(tip.x-this.cx+this.cx,tip.y,0,0);
+    var tp1={x:tip.x+tw*Math.cos(A*Math.PI/180),y:tip.y+tw*Math.sin(A*Math.PI/180)};
+    var tp2={x:tip.x-tw*Math.cos(A*Math.PI/180),y:tip.y-tw*Math.sin(A*Math.PI/180)};
+    this.needle.setAttribute("points",b1.x+","+b1.y+" "+tp1.x+","+tp1.y+" "+tp2.x+","+tp2.y+" "+b2.x+","+b2.y);
+    this.needleEdge.setAttribute("x1",b2.x);this.needleEdge.setAttribute("y1",b2.y);
+    this.needleEdge.setAttribute("x2",tp2.x);this.needleEdge.setAttribute("y2",tp2.y);
+    var txt=o.fmt?o.fmt(o.value):Math.round(o.value);
+    if(hero){ if(this.hv) this.hv.textContent=txt; }
+    else if(this.val) this.val.textContent=txt;
+  };
+  var GAUGES=[];
+
+  /* ---------- mock telemetry: 24S LiFePO4, 100 Ah, 200 A SKU ---------- */
+  var CELLS=24, CAP=100, seed=20260903;
+  function rnd(){seed=(seed*1664525+1013904223)%4294967296;return seed/4294967296;}
+  function ocv(soc){
+    var pts=[[0,3.000],[5,3.180],[15,3.245],[30,3.280],[50,3.300],[70,3.315],[85,3.335],[95,3.400],[100,3.520]];
+    for(var i=1;i<pts.length;i++) if(soc<=pts[i][0]){
+      var a=pts[i-1],b=pts[i],t=(soc-a[0])/(b[0]-a[0]);return a[1]+t*(b[1]-a[1]);
+    }
+    return 3.520;
+  }
+  var T={soc:72,current:168,temp:24,cycles:142,soh:96,phase:0,phaseT:0,offs:[],spread:0.012,balancing:false,faults:[]};
+  for(var i=0;i<CELLS;i++) T.offs.push((rnd()-0.5)*2);
+  var PHASES=[{n:"charge",i:168,d:34},{n:"idle",i:0,d:9},{n:"discharge",i:-142,d:30},{n:"idle",i:0,d:8}];
+
+  function tick(dt){
+    T.phaseT+=dt;
+    var ph=PHASES[T.phase];
+    if(T.phaseT>ph.d){T.phase=(T.phase+1)%PHASES.length;T.phaseT=0;ph=PHASES[T.phase];}
+    var target=ph.i;
+    if(ph.n==="charge") target*=Math.max(0.18,1-Math.pow(T.soc/100,6));
+    T.current+=(target-T.current)*0.18+(rnd()-0.5)*7;
+    if(Math.abs(target)<1&&Math.abs(T.current)<2) T.current*=0.5;
+    T.soc=clamp(T.soc+(T.current*dt/3600)/CAP*100,4,100);
+    T.temp=clamp(T.temp+((22+Math.abs(T.current)*0.055)-T.temp)*0.05,18,44);
+
+    var base=ocv(T.soc), ir=T.current*0.0004;
+    T.balancing = base>3.40 && T.current>2;
+    T.spread += T.balancing ? (0.006-T.spread)*0.05 : (0.020-T.spread)*0.012;
+    T.cells=[];
+    for(var i=0;i<CELLS;i++) T.cells.push(base+ir+T.offs[i]*T.spread);
+    T.min=Math.min.apply(null,T.cells); T.max=Math.max.apply(null,T.cells);
+    T.delta=(T.max-T.min)*1000;
+    T.voltage=T.cells.reduce(function(a,b){return a+b;},0);
+    T.faults = T.max>3.750 ? [{l:"Cell OVP",c:"Cell "+(T.cells.indexOf(T.max)+1),v:T.max.toFixed(3)+" V vs 3.750 V limit",lv:"Critical"}] : [];
+    T.state = T.current>3?"Charging":T.current<-3?"Discharging":"Idle";
+  }
+  for(var w=0;w<40;w++) tick(0.5);
+
+  /* ---------- screens ---------- */
+  var body=document.getElementById("body"), current="dash";
+  var live={};
+
+  function h(html){var d=document.createElement("div");d.innerHTML=html;return d.firstElementChild;}
+  function fmtC(v){return (v>0?"+":"")+Math.round(v);}
+
+  function screenDash(){
+    var frag=document.createDocumentFragment();
+    var hero=h('<section class="leather"><div class="hdr">'+
+      '<div><div class="co">Aurora Fleet</div><div class="batid">BAT-00042 · 24S LiFePO₄</div></div>'+
+      '<div style="text-align:right"><span class="chip"><span class="cell"></span><span id="socChip">72%</span></span><div class="rng">Cycles 142</div></div>'+
+      '</div><div style="display:flex;justify-content:center;padding-bottom:26px" id="heroSlot"></div></section>');
+    frag.appendChild(hero);
+
+    var cream=h('<section class="cream"><div class="metrics" id="metricSlot"></div><div class="divider"></div>'+
+      '<dl class="facts">'+
+      '<div class="fact"><dt>Battery health</dt><dd>96%<small style="color:var(--good)">Good</small></dd></div>'+
+      '<div class="fact"><dt>Temp</dt><dd id="fTemp">24°C<small>75°F</small></dd></div>'+
+      '<div class="fact"><dt>Charging</dt><dd id="fState">Charging<small>JBD SP24S004</small></dd></div>'+
+      '</dl></section>');
+    frag.appendChild(cream);
+
+    var rest=h('<section style="background:var(--pnl)"></section>');
+    rest.appendChild(h('<div class="banner"><span class="dot" style="background:var(--accent);margin-top:5px"></span>'+
+      '<p><b>Balance turn-on raised to 3.42 V.</b> Changed remotely by an administrator during support session <b>SS-4471</b> — nothing for you to approve.</p></div>'));
+    rest.appendChild(h('<div class="pad"><div class="seclabel">Pack detail</div><div class="card alt">'+
+      '<div class="row"><span class="l">Cell delta</span><span class="v" id="rDelta">—</span></div>'+
+      '<div class="row"><span class="l">Min / max cell</span><span class="v" id="rMinMax">—</span></div>'+
+      '<div class="row"><span class="l">Charge MOS</span><span class="v" style="color:var(--good)">ON</span></div>'+
+      '<div class="row"><span class="l">Discharge MOS</span><span class="v" style="color:var(--good)">ON</span></div>'+
+      '<div class="row"><span class="l">Balancing</span><span class="v" id="rBal">—</span></div>'+
+      '<div class="row"><span class="l"><span class="dot" id="fDot" style="background:var(--good)"></span>Protection</span><span class="v" id="rFault">No active faults</span></div>'+
+      '</div></div>'));
+    rest.appendChild(h('<div class="locate"><span style="font-size:15px">◍</span><span>Location unavailable — requires GPS-enabled hardware.</span></div>'));
+    frag.appendChild(rest);
+
+    body.appendChild(frag);
+
+    var size=Math.min(400-96,262);
+    live.hero=new Gauge({variant:"hero",value:T.soc,min:0,max:100,major:10,minor:2,label:"SOC",unit:"%",size:size,danger:[0,15],fmt:function(v){return Math.round(v);}});
+    document.getElementById("heroSlot").appendChild(live.hero.node);
+
+    live.cur=new Gauge({variant:"metric",value:T.current,min:-400,max:400,major:100,label:"Pack Current",unit:"A",size:150,bipolar:true,glyph:true,fmt:fmtC,fmtTick:function(v){return v===0?0:(v>0?"+":"")+v;}});
+    live.vlt=new Gauge({variant:"metric",value:T.voltage,min:62.4,max:90,major:4,label:"Pack Voltage",unit:"V",size:150,glyph:true,fmt:function(v){return v.toFixed(1);},fmtTick:function(v){return Math.round(v);}});
+    var ms=document.getElementById("metricSlot");
+    ms.appendChild(live.cur.node); ms.appendChild(live.vlt.node);
+  }
+
+  function screenCells(){
+    body.appendChild(h('<section class="leather" style="padding-bottom:6px"><div class="scrtitle"><h2>Cells</h2><p>24S · JBD SP24S004</p></div></section>'));
+    var s=h('<section class="cream" style="padding-top:20px"><div class="pad"><div class="grid3" id="cellGrid"></div>'+
+      '<div class="card alt" style="margin-top:14px"><div class="row"><span class="l">Delta</span><span class="v" id="cDelta">—</span></div>'+
+      '<div class="row"><span class="l">Balance opening delta</span><span class="v">15 mV</span></div>'+
+      '<div class="row"><span class="l">Balance turn-on</span><span class="v">3.400 V</span></div></div></div></section>');
+    body.appendChild(s);
+    var g=document.getElementById("cellGrid");
+    live.cellNodes=[];
+    for(var i=0;i<CELLS;i++){
+      var c=h('<div class="card cellcard"><div class="n">CELL '+(i+1)+'</div><div class="v">0.000</div><div class="b"></div></div>');
+      g.appendChild(c); live.cellNodes.push(c);
+    }
+  }
+
+  function screenHistory(){
+    body.appendChild(h('<section class="leather" style="padding-bottom:6px"><div class="scrtitle"><h2>History</h2><p>State of charge · last 24 h</p></div></section>'));
+    body.appendChild(h('<section class="cream" style="padding-top:14px"><div class="pad">'+
+      '<div class="seg" role="group" aria-label="Metric"><button aria-pressed="true">SOC</button><button aria-pressed="false">Voltage</button><button aria-pressed="false">Current</button><button aria-pressed="false">Temp</button></div>'+
+      '<div class="card" style="margin-top:14px;padding:20px 16px 14px"><svg id="chart" viewBox="0 0 320 168" width="100%" height="168" role="img" aria-label="State of charge trend"></svg>'+
+      '<div style="display:flex;justify-content:space-between;margin-top:6px;font:500 10.5px/1 Inter,sans-serif;color:var(--inkFaint)"><span>−24 h</span><span id="chartNow">now · 72%</span></div></div>'+
+      '<div class="seclabel">Session summary</div><div class="card alt">'+
+      '<div class="row"><span class="l">Peak charge current</span><span class="v">+186 A</span></div>'+
+      '<div class="row"><span class="l">Peak discharge current</span><span class="v">−214 A</span></div>'+
+      '<div class="row"><span class="l">Max pack temperature</span><span class="v">33 °C</span></div>'+
+      '<div class="row"><span class="l">Max cell delta</span><span class="v">41 mV</span></div>'+
+      '</div></div></section>'));
+    var svg=document.getElementById("chart");
+    var pts=[],v=61;
+    for(var i=0;i<72;i++){ v=clamp(v+Math.sin(i/6)*2.4+(rnd()-0.5)*1.6,42,94); pts.push(v); }
+    pts.push(T.soc);
+    var mn=Math.min.apply(null,pts)-3, mx=Math.max.apply(null,pts)+3, W=320,H=168,P=14;
+    var d="",area="";
+    pts.forEach(function(p,i){
+      var x=P+(i/(pts.length-1))*(W-P*2), y=H-P-((p-mn)/(mx-mn))*(H-P*2-10);
+      d+=(i?" L ":"M ")+x.toFixed(1)+" "+y.toFixed(1);
+      area+=(i?" L ":"M ")+x.toFixed(1)+" "+y.toFixed(1);
+    });
+    [0.25,0.5,0.75].forEach(function(f){
+      var y=H-P-f*(H-P*2-10);
+      svg.appendChild(el("line",{x1:P,x2:W-P,y1:y,y2:y,stroke:"var(--pnlTrack)",'stroke-width':1}));
+      var t=el("text",{x:W-P,y:y-5,'text-anchor':"end",'font-size':9.5,'font-family':"Inter,sans-serif",fill:"var(--inkFaint)"});
+      t.textContent=Math.round(mn+f*(mx-mn))+"%"; svg.appendChild(t);
+    });
+    svg.appendChild(el("path",{d:area+" L "+(W-P)+" "+(H-P)+" L "+P+" "+(H-P)+" Z",fill:"var(--accent)",opacity:.10}));
+    svg.appendChild(el("path",{d:d,fill:"none",stroke:"var(--accent)",'stroke-width':2.4,'stroke-linecap':"round",'stroke-linejoin':"round"}));
+    var last=pts[pts.length-1];
+    var lx=W-P, ly=H-P-((last-mn)/(mx-mn))*(H-P*2-10);
+    svg.appendChild(el("circle",{cx:lx,cy:ly,r:4.5,fill:"var(--accent)"}));
+    svg.appendChild(el("circle",{cx:lx,cy:ly,r:8,fill:"var(--accent)",opacity:.2}));
+    document.getElementById("chartNow").textContent="now · "+Math.round(T.soc)+"%";
+  }
+
+  var PARAMS=[
+    ["Voltage Protection",[
+      ["Cell over-voltage","3.750 V","Critical",1],
+      ["Cell over-voltage release","3.600 V","Normal",1],
+      ["Cell under-voltage","2.200 V","Critical",1],
+      ["Cell under-voltage release","2.600 V","Normal",1]]],
+    ["Current Protection",[
+      ["Charge over-current","220 ± 5 A","Critical",0],
+      ["1st-stage discharge OCP","220 ± 5 A","Critical",0],
+      ["2nd-stage discharge OCP","600 ± 50 A","Critical",0],
+      ["Short-circuit protection","2400 ± 400 A","Critical",0]]],
+    ["Temperature",[
+      ["Charge high-temp protection","65 °C","Warning",1],
+      ["Discharge high-temp protection","75 °C","Warning",1],
+      ["FET high-temp protection","90 °C","Warning",1]]],
+    ["Balancing",[
+      ["Balance turn-on voltage","3.420 V","Normal",1],
+      ["Balance opening delta","15 mV","Normal",1],
+      ["Balance current","20–110 mA","Normal",0]]]
+  ];
+  function screenSettings(){
+    body.appendChild(h('<section class="leather" style="padding-bottom:6px"><div class="scrtitle"><h2>Settings</h2><p>JBD SP24S004 · capability profile</p></div></section>'));
+    var s=h('<section class="cream" style="padding-top:6px"><div class="pad" id="setPad"></div></section>');
+    body.appendChild(s);
+    var pad=document.getElementById("setPad");
+    PARAMS.forEach(function(grp){
+      pad.appendChild(h('<div class="seclabel">'+grp[0]+'</div>'));
+      var card=h('<div class="card"></div>');
+      grp[1].forEach(function(p){
+        var col=p[2]==="Critical"?"var(--crit)":p[2]==="Warning"?"var(--warn)":"var(--good)";
+        card.appendChild(h('<div class="row" style="'+(p[3]?'':'opacity:.62')+'">'+
+          '<span class="l"><span class="dot" style="background:'+col+'"></span>'+p[0]+'</span>'+
+          '<span class="v">'+p[1]+(p[3]?' <span style="color:var(--inkFaint)">›</span>':' <span class="tag">SKU-fixed</span>')+'</span></div>'));
+      });
+      pad.appendChild(card);
+    });
+    pad.appendChild(h('<p style="font:400 11px/1.55 Inter,sans-serif;color:var(--inkFaint);margin:18px 4px 26px">Vendor datasheet seed values. Over-current thresholds are fixed by the board’s 200 A continuous rating and are read-only. Editing any parameter opens the full safe-write confirmation.</p>'));
+  }
+
+  function paint(){
+    body.innerHTML=""; body.scrollTop=0;
+    GAUGES.length=0; live={};
+    if(current==="dash") screenDash();
+    else if(current==="cells") screenCells();
+    else if(current==="history") screenHistory();
+    else screenSettings();
+    sync(true);
+  }
+
+  /* ---------- tabs ---------- */
+  var ICONS={
+    dash:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20a8 8 0 1 1 8-8"/><path d="M12 12l4.5-3.5"/></svg>',
+    cells:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+    history:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
+    settings:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>'
+  };
+  var tabs=document.getElementById("tabs");
+  [["dash","Dash"],["cells","Cells"],["history","History"],["settings","Settings"]].forEach(function(t){
+    var b=document.createElement("button");
+    b.setAttribute("role","tab"); b.setAttribute("aria-selected",t[0]===current);
+    b.innerHTML='<span class="pill">'+ICONS[t[0]]+'</span><span class="lbl">'+t[1]+'</span>';
+    b.onclick=function(){
+      current=t[0];
+      Array.prototype.forEach.call(tabs.children,function(c,i){c.setAttribute("aria-selected",["dash","cells","history","settings"][i]===current);});
+      paint();
+    };
+    tabs.appendChild(b);
+  });
+
+  /* ---------- theme ---------- */
+  var tl=document.getElementById("tLight"), td=document.getElementById("tDark");
+  function setTheme(m){
+    document.documentElement.setAttribute("data-theme",m);
+    tl.setAttribute("aria-pressed",m==="light"); td.setAttribute("aria-pressed",m==="dark");
+    try{localStorage.setItem("kye-theme",m);}catch(e){}
+  }
+  tl.onclick=function(){setTheme("light");}; td.onclick=function(){setTheme("dark");};
+  try{
+    var saved=localStorage.getItem("kye-theme");
+    if(saved) setTheme(saved);
+    else if(window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches){
+      tl.setAttribute("aria-pressed","false"); td.setAttribute("aria-pressed","true");
+    }
+  }catch(e){}
+
+  /* ---------- sync DOM to telemetry ---------- */
+  function sync(force){
+    if(current==="dash"){
+      if(live.hero){live.hero.set(T.soc);live.cur.set(T.current);live.vlt.set(T.voltage);}
+      var q=function(id){return document.getElementById(id);};
+      if(q("socChip")) q("socChip").textContent=Math.round(T.soc)+"%";
+      if(q("fTemp")) q("fTemp").innerHTML=Math.round(T.temp)+"°C<small>"+Math.round(T.temp*1.8+32)+"°F</small>";
+      if(q("fState")) q("fState").innerHTML=T.state+"<small>JBD SP24S004</small>";
+      if(q("rDelta")) q("rDelta").textContent=T.delta.toFixed(0)+" mV";
+      if(q("rMinMax")) q("rMinMax").textContent=T.min.toFixed(3)+" / "+T.max.toFixed(3)+" V";
+      if(q("rBal")) q("rBal").textContent=T.balancing?"Active":"Idle";
+      if(q("rFault")){
+        var f=q("rFault"), d=q("fDot");
+        if(T.faults.length){f.textContent=T.faults[0].l+" · "+T.faults[0].c;f.style.color="var(--crit)";d.style.background="var(--crit)";}
+        else{f.textContent="No active faults";f.style.color="var(--inkSoft)";d.style.background="var(--good)";}
+      }
+    } else if(current==="cells" && live.cellNodes){
+      var lo=T.cells.indexOf(T.min), hi=T.cells.indexOf(T.max);
+      live.cellNodes.forEach(function(n,i){
+        n.querySelector(".v").textContent=T.cells[i].toFixed(3);
+        var edge=(i===lo||i===hi);
+        n.classList.toggle("edge",edge);
+        n.querySelector(".b").textContent=edge?(i===hi?"MAX":"MIN"):"";
+      });
+      var cd=document.getElementById("cDelta");
+      if(cd){cd.textContent="Δ "+T.delta.toFixed(0)+" mV";cd.style.color=T.delta>15?"var(--warn)":"var(--inkSoft)";}
+    }
+  }
+
+  /* ---------- loops: telemetry 2 Hz, needles at frame rate ---------- */
+  setInterval(function(){ tick(0.5); sync(); }, 500);
+  var last=performance.now();
+  (function frame(now){
+    var dt=(now-last)/1000; last=now;
+    for(var i=0;i<GAUGES.length;i++){var g=GAUGES[i];g.render(g.spring.step(dt));}
+    requestAnimationFrame(frame);
+  })(last);
+
+  paint();
+})();
+</script>

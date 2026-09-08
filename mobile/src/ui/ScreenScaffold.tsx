@@ -1,0 +1,92 @@
+import React from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChevronLeft } from 'lucide-react-native';
+import { useTheme } from '../theme/ThemeProvider';
+import { space } from '../theme/tokens';
+import { type as T } from '../theme/type';
+import { LeatherPanel } from './LeatherPanel';
+
+/**
+ * Every screen that isn't the Dashboard: a thin pinned leather header over a
+ * scrolling cream body. Leather never scrolls; cream always does.
+ */
+export function ScreenScaffold({
+  title,
+  sub,
+  back = true,
+  right,
+  children,
+  scroll = true,
+}: {
+  title: string;
+  sub: string;
+  back?: boolean;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+  scroll?: boolean;
+}) {
+  const { p } = useTheme();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  const Body = scroll ? ScrollView : View;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: p.panelBase }}>
+      <LeatherPanel tone="hero" radius={0} style={{ paddingTop: insets.top + 8, paddingBottom: 8 }}>
+        <View style={styles.head}>
+          <View style={{ flexShrink: 1 }}>
+            {back && (
+              <Pressable
+                onPress={() => router.back()}
+                accessibilityRole="button"
+                accessibilityLabel="Back"
+                hitSlop={12}
+                style={styles.back}
+              >
+                <ChevronLeft size={16} color={p.leatherInkSoft} strokeWidth={2.4} />
+                <Text style={[T.tabLabel, { color: p.leatherInkSoft }]}>Back</Text>
+              </Pressable>
+            )}
+            <Text style={[T.screenTitle, { color: p.leatherInk }]}>{title}</Text>
+            <Text style={[T.screenSub, { color: p.leatherInkSoft, marginTop: 7 }]}>{sub}</Text>
+          </View>
+          {right}
+        </View>
+      </LeatherPanel>
+
+      <Body
+        style={{ flex: 1 }}
+        contentContainerStyle={
+          scroll ? { paddingHorizontal: space.gutter, paddingBottom: insets.bottom + 32 } : undefined
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {children}
+      </Body>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  head: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    paddingBottom: 16,
+    gap: 12,
+  },
+  // 44pt minimum declared outright rather than relying on content plus hitSlop.
+  back: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    minHeight: 44,
+    marginBottom: 4,
+    marginLeft: -4,
+  },
+});

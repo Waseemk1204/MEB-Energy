@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+web-build/
+*.tsbuildinfo
+
+# Databases. These are local development stores, and dev.db in particular holds
+# real password hashes for the seeded accounts — it must never leave a machine.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.mobileprovision
+
+# Expo / Metro
+.expo/
+.metro-health-check*
+expo-env.d.ts
+
+# Editor and OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Local launch configuration. Points at absolute paths on one machine, so it is
+# useful to whoever wrote it and misleading to everybody else.
+.claude/launch.json
+
+# Test and coverage output
+coverage/

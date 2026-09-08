@@ -1,0 +1,208 @@
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
+import type { Store } from '../db/client.js';
+import type { Principal, Role } from '../db/tenancy.js';
+
+/**
+ * Short-lived access tokens with rotating refresh tokens (PRD §8.1).
+ *
+ * The property worth the complexity is **reuse detection**. Refresh tokens
+ * rotate on every use, and presenting one that has already been rotated means
+ * either an attacker replayed a stolen token or the legitimate client did — and
+ * we cannot tell which. So the whole chain for that user is revoked, forcing a
+ * fresh sign-in. Losing a session is a small cost; leaving a stolen refresh
+ * token live is not.
+ */
+
+/** Deliberately short — a leaked access token should expire before it is useful. */
+export const ACCESS_TTL_SECONDS = 15 * 60;
+export const REFRESH_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
+const ISSUER = 'knowyourev';
+const AUDIENCE = 'knowyourev-clients';
+
+export interface AccessClaims extends JWTPayload {
+  sub: string;
+  role: Role;
+  /** Null for platform admins; every other principal is tenant-bound. */
+  cid: string | null;
+}
+
+export class AuthError extends Error {
+  constructor(
+    message: string,
+    readonly code:
+      | 'invalid_token'
+      | 'expired_token'
+      | 'reuse_detected'
+      | 'revoked'
+      | 'unknown_token'
+  ) {
+    super(message);
+    this.name = 'AuthError';
+  }
+}
+
+export function secretFrom(value: string): Uint8Array {
+  if (value.length < 32) {
+    throw new Error('Signing secret must be at least 32 characters');
+  }
+  return new TextEncoder().encode(value);
+}
+
+export async function issueAccessToken(
+  principal: Principal,
+  secret: Uint8Array,
+  nowSeconds = Math.floor(Date.now() / 1000)
+): Promise<string> {
+  return new SignJWT({ role: principal.role, cid: principal.companyId })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(principal.userId)
+    .setIssuer(ISSUER)
+    .setAudience(AUDIENCE)
+    .setIssuedAt(nowSeconds)
+    .setExpirationTime(nowSeconds + ACCESS_TTL_SECONDS)
+    .sign(secret);
+}
+
+export async function verifyAccessToken(token: string, secret: Uint8Array): Promise<Principal> {
+  try {
+    const { payload } = await jwtVerify<AccessClaims>(token, secret, {
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      algorithms: ['HS256'],
+    });
+
+    if (!payload.sub || !payload.role) {
+      throw new AuthError('Token is missing required claims', 'invalid_token');
+    }
+
+    const companyId = payload.cid ?? null;
+    // The same rule the schema enforces: only admins are tenantless. A token
+    // claiming otherwise is malformed regardless of a valid signature.
+    if ((payload.role === 'admin') !== (companyId === null)) {
+      throw new AuthError('Token role and tenant claim disagree', 'invalid_token');
+    }
+
+    return { userId: payload.sub, role: payload.role, companyId };
+  } catch (error) {
+    if (error instanceof AuthError) throw error;
+    const code = (error as { code?: string }).code;
+    throw new AuthError(
+      'Access token is not valid',
+      code === 'ERR_JWT_EXPIRED' ? 'expired_token' : 'invalid_token'
+    );
+  }
+}
+
+/* --------------------------------------------------------- refresh tokens */
+
+const hashToken = (raw: string) => createHash('sha256').update(raw).digest('hex');
+
+interface RefreshRow {
+  id: string;
+  user_id: string;
+  expires_at: number;
+  revoked_at: number | null;
+  replaced_by: string | null;
+  device_label: string | null;
+}
+
+export interface IssuedRefresh {
+  token: string;
+  id: string;
+  userId: string;
+  expiresAt: number;
+}
+
+/** Raw token is returned once and never stored — only its hash is kept. */
+export function issueRefreshToken(
+  store: Store,
+  userId: string,
+  now = Date.now(),
+  /**
+   * What the person is signing in on, for the concurrent-device cap. Carried
+   * across rotation so a device keeps its name for the life of the session
+   * rather than becoming anonymous the first time its token renews.
+   */
+  deviceLabel: string | null = null
+): IssuedRefresh {
+  const token = randomBytes(32).toString('base64url');
+  const id = randomUUID();
+  const expiresAt = now + REFRESH_TTL_MS;
+
+  store.run(
+    'INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, created_at, device_label) VALUES (?,?,?,?,?,?)',
+    id,
+    userId,
+    hashToken(token),
+    expiresAt,
+    now,
+    deviceLabel
+  );
+
+  return { token, id, userId, expiresAt };
+}
+
+export function revokeAllForUser(store: Store, userId: string, now = Date.now()): void {
+  store.run(
+    'UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL',
+    now,
+    userId
+  );
+}
+
+/**
+ * Exchanges a refresh token for a new one.
+ *
+ * Presenting an already-rotated token is treated as compromise: every token for
+ * that user is revoked. We cannot distinguish a replayed steal from a confused
+ * client, and only one of those is safe to assume.
+ */
+export function rotateRefreshToken(
+  store: Store,
+  rawToken: string,
+  now = Date.now()
+): IssuedRefresh {
+  const row = store.get<RefreshRow>(
+    'SELECT id, user_id, expires_at, revoked_at, replaced_by, device_label FROM refresh_tokens WHERE token_hash = ?',
+    hashToken(rawToken)
+  );
+
+  if (!row) throw new AuthError('Refresh token is not recognised', 'unknown_token');
+
+  if (row.revoked_at !== null) {
+    revokeAllForUser(store, row.user_id, now);
+    throw new AuthError(
+      'Refresh token has already been used; all sessions for this user were revoked',
+      'reuse_detected'
+    );
+  }
+
+  if (row.expires_at <= now) {
+    throw new AuthError('Refresh token has expired', 'expired_token');
+  }
+
+  return store.transaction(() => {
+    // Rotation is the same device continuing, not a new one. It keeps the
+    // label, and deliberately does not re-check the device cap: the count is
+    // unchanged, and re-checking here would let a rotation evict a sibling.
+    const next = issueRefreshToken(store, row.user_id, now, row.device_label ?? null);
+    store.run(
+      'UPDATE refresh_tokens SET revoked_at = ?, replaced_by = ? WHERE id = ?',
+      now,
+      next.id,
+      row.id
+    );
+    return next;
+  });
+}
+
+/** Sign-out. Idempotent: an unknown token is not an error worth surfacing. */
+export function revokeRefreshToken(store: Store, rawToken: string, now = Date.now()): void {
+  store.run(
+    'UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL',
+    now,
+    hashToken(rawToken)
+  );
+}
