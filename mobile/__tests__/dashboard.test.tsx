@@ -18,6 +18,21 @@ import type { BatterySnapshot } from '../src/telemetry/types';
 
 const wrap = () => render(<ThemeProvider><Dashboard /></ThemeProvider>);
 
+/*
+ * A fixed clock, because this screen hides its readings once they go stale.
+ *
+ * Telemetry counts as stale after three seconds, and these fixtures stamp
+ * themselves with the current time. That is fine until the machine is loaded
+ * enough that three seconds pass between building the fixture and the render
+ * reading it — at which point the charge state correctly renders "Unknown"
+ * and a test asserting "Idle" fails for a reason that has nothing to do with
+ * what it is testing. It happened once in four runs of the full gate.
+ *
+ * The staleness tests below still work: they set timestamps at explicit
+ * offsets from now, and an offset from a frozen now is exactly as stale.
+ */
+const FROZEN_NOW = 1_760_000_000_000;
+
 const snapshot = (over: Partial<BatterySnapshot> = {}): BatterySnapshot => {
   const cells = Array.from({ length: 24 }, () => 3.3);
   return {
@@ -47,9 +62,14 @@ const snapshot = (over: Partial<BatterySnapshot> = {}): BatterySnapshot => {
 };
 
 beforeEach(() => {
+  jest.spyOn(Date, 'now').mockReturnValue(FROZEN_NOW);
   mockPush.mockClear();
   useTelemetryStore.setState({ snapshot: snapshot(), history: [] });
   useActivityStore.setState({ entries: [], unseenAdminEntryId: null });
+});
+
+afterEach(() => {
+  jest.spyOn(Date, 'now').mockRestore();
 });
 
 describe('primary instrumentation', () => {
@@ -87,6 +107,10 @@ describe('primary instrumentation', () => {
     const q = await wrap();
     // Charge state and the balancing row both read "Idle" here.
     expect(q.getAllByText('Idle')).toHaveLength(2);
+    // Named explicitly: when this count was wrong it was because the reading
+    // had gone stale and the charge state said "Unknown", which "expected 2,
+    // got 1" does not tell you.
+    expect(q.queryByText('Unknown')).toBeNull();
     expect(q.queryByText('Discharging')).toBeNull();
   });
 });
