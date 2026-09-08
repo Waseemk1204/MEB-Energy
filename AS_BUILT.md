@@ -914,8 +914,9 @@ It uses `npm ci` so a drifted lockfile fails rather than being silently
 repaired, and dumps the server log on failure — because §10 established that a
 failure leaving no trace cannot be diagnosed.
 
-The repository is not under git yet, so nothing runs it. The README says so
-rather than implying a green badge that does not exist.
+At the time it was written the repository was not under git, so nothing ran it,
+and the README said so rather than implying a green badge that did not exist. It
+first ran when the project was pushed to GitHub — see §33.
 
 ---
 
@@ -1347,9 +1348,6 @@ another JSON file rather than a code change, but only JBD SP24S004 exists.
 **Location.** Columns and a `location: null` field are reserved per PRD §7.16
 so adding GPS needs no migration. Nothing populates them.
 
-**No CI actually runs.** `.github/workflows/ci.yml` is correct and untested,
-because this is not a git repository.
-
 **Device identity is a User-Agent.** `device_label` names a signed-in device so
 the eviction notice can say *which*. It is neither unique nor trustworthy — two
 identical phones look the same, and a client can send anything. It exists to
@@ -1359,3 +1357,32 @@ make the notice readable, and nothing depends on it for identity.
 own seats and are bounded by `seat_limit` instead; capping them too would mean a
 field user losing their tablet every time they picked up their phone.
 `CAPPED_ROLES` is the one place to change if that turns out to be wrong.
+
+## 33. Into git, and the first CI run
+
+The project went to
+[knowyourmechanic/KnowyourEV-app](https://github.com/knowyourmechanic/KnowyourEV-app)
+as one commit. Two things were worth care rather than haste.
+
+**`mobile/` was its own git repository.** It staged as a gitlink, which means a
+clone of the outer repository would have contained an empty `mobile/` directory
+and no way to obtain its contents — the push would have looked like it worked
+and shipped a third of the project as a dangling pointer. Its history was a
+single `create-expo-app` scaffold commit and every real change was uncommitted,
+so flattening it lost nothing; its `.git` was moved aside rather than deleted,
+because "nothing of value in here" is a judgement worth being able to reverse.
+
+**What must not be committed.** `dev.db` holds real scrypt hashes for the seeded
+accounts and `knowyourev.db` the same; both are covered by `*.db` in the root
+`.gitignore`, along with `node_modules/`, build output, `.expo/`, and
+`.claude/launch.json` — that last one names absolute paths on one machine and
+would be actively misleading anywhere else. The staged set was checked for
+databases, env files and keys before the commit, not after. The only credentials
+in the tree are the throwaway ones in `verify.sh`, which exist to boot a
+disposable database in a test run and are named so they cannot be mistaken for
+anything else.
+
+**CI had never run.** `.github/workflows/ci.yml` was written in §23 and, with no
+git repository to run it, stayed correct-looking and unexecuted. Those are not
+the same thing, and the README said so rather than implying a green badge. The
+push is the first time it has actually been asked to do anything.

@@ -138,8 +138,10 @@ only one worth trusting before a change goes anywhere.
 `.github/workflows/ci.yml` runs exactly that — one job, not three, because
 splitting the packages into parallel jobs would leave the seams between them
 unchecked, and the seams are where most of this project's real bugs have been.
-*(This is not a git repository yet, so nothing runs it. It is ready for when
-one exists.)*
+It ran for the first time when this was pushed to
+[knowyourmechanic/KnowyourEV-app](https://github.com/knowyourmechanic/KnowyourEV-app);
+until then it was correct-looking and unexecuted, which is not the same thing as
+working.
 
 The individual pieces, if you want them separately:
 
