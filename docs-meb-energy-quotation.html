@@ -1,0 +1,1197 @@
+<title>MEB Energy Pilot Quotation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+
+<style>
+/* -------------------------------------------------------------
+   knowyourEV -- quotation for MEB Energy
+
+   The palette is the product's own "Bentley cluster" system with
+   the leather recoloured from tan to olive, as asked. Two
+   materials carry two meanings and that survives the recolour:
+
+     hero  = live instrumentation, olive, never scrolls
+     panel = data and controls, white, always scrolls
+
+   The dashed stitch is the only border in the product. It is the
+   only border here too.
+   ------------------------------------------------------------- */
+
+:root {
+  /* Olive leather -- was tan. */
+  --olive-1: #6F7F45;
+  --olive-2: #5E6E3A;
+  --olive-3: #4E5C30;
+  --olive-deep: #3A4522;
+
+  /* Neutrals biased toward the olive, so they read as chosen. */
+  --ground: #FFFFFF;
+  --panel: #FFFFFF;
+  --panel-alt: #F3F6EC;
+  --ink: #1F2A16;
+  --ink-soft: #55654A;
+  --ink-faint: #7B8A70;
+  --stitch: #D9E1CB;
+  --rule: #E7EDDD;
+
+  /* Semantic, deliberately not the accent. */
+  --good: #3F7A46;
+  --warn: #8E6A15;
+  --critical: #A63B27;
+
+  --accent: #5E6E3A;
+  --accent-ink: #FFFFFF;
+
+  --shadow: 0 1px 2px rgba(31,42,22,.05), 0 8px 24px rgba(31,42,22,.06);
+  --measure: 68ch;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #14180F;
+    --panel: #1B2015;
+    --panel-alt: #222819;
+    --ink: #E9EFE0;
+    --ink-soft: #AEBCA0;
+    --ink-faint: #8A9A7C;
+    --stitch: #3A452C;
+    --rule: #2C3520;
+    --good: #7FB183;
+    --warn: #D3A44A;
+    --critical: #E08D7B;
+    --accent: #A8BC77;
+    --accent-ink: #14180F;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #14180F;
+  --panel: #1B2015;
+  --panel-alt: #222819;
+  --ink: #E9EFE0;
+  --ink-soft: #AEBCA0;
+  --ink-faint: #8A9A7C;
+  --stitch: #3A452C;
+  --rule: #2C3520;
+  --good: #7FB183;
+  --warn: #D3A44A;
+  --critical: #E08D7B;
+  --accent: #A8BC77;
+  --accent-ink: #14180F;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px 96px; }
+.col  { max-width: var(--measure); }
+
+h1, h2, h3 { font-family: Fraunces, Georgia, "Times New Roman", serif; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2rem, 1.3rem + 2.6vw, 3.1rem); font-weight: 600; letter-spacing: -.015em; line-height: 1.08; }
+h2 { font-size: clamp(1.35rem, 1.1rem + 1vw, 1.85rem); font-weight: 600; letter-spacing: -.01em; line-height: 1.2; }
+h3 { font-size: 1.06rem; font-weight: 600; letter-spacing: -.005em; }
+p  { margin: 0; }
+
+.eyebrow {
+  font-family: Inter, sans-serif;
+  font-size: .688rem; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.lede { font-size: 1.075rem; color: var(--ink-soft); }
+.small { font-size: .875rem; color: var(--ink-soft); }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* -- Masthead ------------------------------------------------- */
+
+.masthead {
+  background:
+    linear-gradient(152deg, var(--olive-1) 0%, var(--olive-2) 52%, var(--olive-3) 100%);
+  color: #fff;
+  border-radius: 0 0 28px 28px;
+  padding: clamp(28px, 4vw, 52px) clamp(22px, 4vw, 48px) clamp(30px, 4vw, 46px);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 40px;
+}
+/* The stitch: the product's only border, reproduced exactly. */
+.masthead::after {
+  content: "";
+  position: absolute; inset: 9px;
+  border: 2px dashed rgba(255,255,255,.34);
+  border-radius: 20px;
+  pointer-events: none;
+}
+.mast-grid {
+  position: relative; z-index: 1;
+  display: flex; flex-wrap: wrap; gap: 28px;
+  align-items: flex-start; justify-content: space-between;
+}
+.mast-mark {
+  font-family: Fraunces, serif; font-weight: 700;
+  font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.15rem);
+  letter-spacing: -.02em; line-height: 1;
+}
+.mast-mark span { color: #DCE7C2; }
+.mast-sub {
+  font-family: "Space Grotesk", Inter, sans-serif;
+  font-size: .72rem; font-weight: 600;
+  letter-spacing: .19em; text-transform: uppercase;
+  color: #D3E0B6; margin-top: 9px;
+}
+.mast-meta {
+  display: grid; grid-template-columns: auto auto; gap: 4px 18px;
+  font-size: .82rem; color: #E4EDD3;
+}
+.mast-meta dt { color: #BCCE99; }
+.mast-meta dd { margin: 0; font-weight: 600; }
+
+.draft {
+  display: inline-flex; align-items: center; gap: 9px;
+  margin-top: 26px; padding: 9px 16px;
+  border: 2px dashed rgba(255,255,255,.5);
+  border-radius: 999px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: .72rem; font-weight: 700;
+  letter-spacing: .13em; text-transform: uppercase;
+  color: #fff; position: relative; z-index: 1;
+}
+.draft b { color: #EEF4E0; }
+
+/* -- Sections ------------------------------------------------- */
+
+section { margin-top: clamp(44px, 6vw, 76px); }
+.sec-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
+
+.stack { display: flex; flex-direction: column; gap: 16px; }
+
+.parties {
+  display: grid; gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(238px, 1fr));
+}
+.party {
+  background: var(--panel-alt);
+  border-radius: 20px;
+  padding: 20px 22px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.party .role { font-size: .7rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 6px; }
+.party .name { font-family: "Space Grotesk", sans-serif; font-weight: 600; font-size: 1.06rem; }
+.party .line { font-size: .875rem; color: var(--ink-soft); }
+
+/* Scope list -- numbered because delivery genuinely runs in this order. */
+ol.phases { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; counter-reset: ph; }
+ol.phases li {
+  counter-increment: ph;
+  display: grid; grid-template-columns: 40px 1fr; gap: 16px;
+  padding: 16px 0; border-bottom: 1px solid var(--rule);
+}
+ol.phases li:last-child { border-bottom: 0; }
+ol.phases li::before {
+  content: counter(ph, decimal-leading-zero);
+  font-family: "Space Grotesk", sans-serif; font-size: .8rem; font-weight: 700;
+  color: var(--accent); letter-spacing: .04em; padding-top: 2px;
+}
+ol.phases h3 { margin-bottom: 3px; }
+ol.phases p { font-size: .925rem; color: var(--ink-soft); }
+.wk { font-size: .75rem; color: var(--ink-faint); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-top: 5px; }
+
+/* -- Commercials ---------------------------------------------- */
+
+.money { overflow-x: auto; border-radius: 20px; border: 1px solid var(--rule); }
+table.q { width: 100%; border-collapse: collapse; min-width: 520px; background: var(--panel); }
+table.q th, table.q td { padding: 15px 20px; text-align: left; border-bottom: 1px solid var(--rule); }
+table.q thead th {
+  font-family: Inter, sans-serif; font-size: .69rem; font-weight: 700;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--ink-faint);
+  background: var(--panel-alt);
+}
+table.q td.num, table.q th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.q .item { font-weight: 600; }
+table.q .desc { font-size: .84rem; color: var(--ink-soft); margin-top: 2px; }
+table.q tr.sum td { border-top: 1px solid var(--rule); border-bottom: 0; color: var(--ink-soft); }
+table.q tr.total td {
+  border-top: 2px solid var(--accent); border-bottom: 0;
+  font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 1.12rem; color: var(--ink);
+  padding-top: 17px; padding-bottom: 19px;
+}
+.blank { color: var(--warn); font-weight: 600; }
+
+.terms { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); }
+.term { border-left: 2px solid var(--stitch); padding: 2px 0 2px 16px; }
+.term dt { font-size: .7rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-faint); }
+.term dd { margin: 4px 0 0; font-size: .92rem; color: var(--ink-soft); }
+
+.note {
+  background: var(--panel-alt); border-radius: 20px;
+  padding: 20px 22px; font-size: .9rem; color: var(--ink-soft);
+}
+.note b { color: var(--ink); }
+
+/* ===============================================================
+   THE DEMO
+   Light only, by request -- every colour below is a literal, never
+   a document token, so the viewer's dark mode cannot reach in and
+   invert a product screenshot.
+   =============================================================== */
+
+.demo-band {
+  background: #EEF2E4;
+  border-radius: 28px;
+  padding: clamp(24px, 3.5vw, 44px);
+  display: grid; gap: clamp(24px, 3vw, 44px);
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  color: #1F2A16;
+}
+@media (min-width: 880px) {
+  .demo-band { grid-template-columns: 300px minmax(0, 1fr); }
+}
+.demo-copy h2 { color: #1F2A16; }
+.demo-copy .eyebrow { color: #6C7C5E; }
+.demo-copy p { color: #4A5A3E; font-size: .94rem; }
+.demo-steps { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; padding: 0; list-style: none; }
+.demo-steps li { display: grid; grid-template-columns: 20px 1fr; gap: 10px; font-size: .875rem; color: #4A5A3E; }
+.demo-steps svg { margin-top: 5px; }
+
+/* The phone */
+.phone-holder { display: flex; justify-content: center; }
+.phone {
+  width: 100%; max-width: 366px;
+  background: #101408;
+  border-radius: 42px;
+  padding: 11px;
+  box-shadow: 0 2px 5px rgba(31,42,22,.14), 0 26px 60px rgba(31,42,22,.24);
+}
+.screen {
+  background: #FFFFFF;
+  border-radius: 32px;
+  overflow: hidden;
+  height: 686px;
+  display: flex; flex-direction: column;
+  position: relative;
+  font-family: Inter, sans-serif;
+}
+
+/* status bar -- sits above content, which is the bug this build fixed */
+.statusbar {
+  background: linear-gradient(152deg, #6F7F45 0%, #5E6E3A 100%);
+  color: #F2F7E6;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 20px 4px;
+  font-family: "Space Grotesk", sans-serif; font-size: .69rem; font-weight: 600;
+  letter-spacing: .04em;
+  flex: none;
+}
+.statusbar .dots { display: flex; gap: 3px; align-items: center; }
+.statusbar i { width: 3px; border-radius: 1px; background: #E4EDD3; display: block; }
+
+.hero {
+  background: linear-gradient(152deg, #6F7F45 0%, #5E6E3A 52%, #4E5C30 100%);
+  color: #fff; padding: 4px 0 18px; position: relative; flex: none;
+}
+.hero::after {
+  content: ""; position: absolute; left: 9px; right: 9px; top: 0; bottom: 9px;
+  border: 2px dashed rgba(255,255,255,.28); border-top: 0;
+  border-radius: 0 0 18px 18px; pointer-events: none;
+}
+.hero-inner { position: relative; z-index: 1; padding: 0 20px; }
+
+.backbtn {
+  display: inline-flex; align-items: center; gap: 3px;
+  min-height: 40px; margin-left: -5px; padding: 0 6px 0 0;
+  background: none; border: 0; cursor: pointer;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: #D3E0B6;
+  border-radius: 999px;
+}
+.backbtn:hover { color: #fff; }
+.backbtn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+.hero-title { font-family: "Space Grotesk", sans-serif; font-size: 1.32rem; font-weight: 700; letter-spacing: -.015em; }
+.hero-sub { font-size: .76rem; color: #D3E0B6; margin-top: 5px; letter-spacing: .02em; }
+.hero-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.socchip {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1.5px solid rgba(255,255,255,.62); border-radius: 999px;
+  padding: 4px 11px; font-size: .78rem; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cyc { font-size: .66rem; color: #C6D6A4; margin-top: 6px; text-align: right; letter-spacing: .07em; text-transform: uppercase; }
+
+.body {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  background: #FFFFFF; padding: 16px 18px 26px;
+  scrollbar-width: thin;
+}
+
+/* battery list -- the first thing the app shows */
+.blist { display: flex; flex-direction: column; gap: 10px; }
+.bcard {
+  width: 100%; text-align: left; cursor: pointer;
+  background: #FFFFFF; border: 0; border-radius: 18px;
+  padding: 14px 15px;
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+  align-items: center;
+  position: relative;
+  box-shadow: 0 0 0 1px #E7EDDD;
+  font-family: inherit;
+}
+.bcard::after {
+  content: ""; position: absolute; inset: 6px;
+  border: 1.5px dashed #DDE5CE; border-radius: 13px; pointer-events: none;
+}
+.bcard:hover { box-shadow: 0 0 0 1px #A8BC77, 0 4px 14px rgba(31,42,22,.08); }
+.bcard:focus-visible { outline: 2px solid #5E6E3A; outline-offset: 2px; }
+.bcard .sn { font-family: "Space Grotesk", sans-serif; font-weight: 600; font-size: .95rem; color: #1F2A16; }
+.bcard .meta { font-size: .72rem; color: #6C7C5E; grid-column: 1; }
+.bcard .soc { font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 1.02rem; font-variant-numeric: tabular-nums; color: #1F2A16; text-align: right; }
+.bcard .st { grid-column: 2; text-align: right; }
+
+.pill {
+  display: inline-block; padding: 2px 9px; border-radius: 999px;
+  font-size: .64rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.pill.good { background: #E4F0E2; color: #2F6236; }
+.pill.warn { background: #F8EFD6; color: #7A5A10; }
+.pill.crit { background: #F9E3DE; color: #8E3020; }
+.pill.idle { background: #EDF1E4; color: #5A6A4A; }
+
+.seclabel {
+  font-size: .64rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+  color: #7B8A70; margin: 20px 0 9px;
+}
+.seclabel:first-child { margin-top: 4px; }
+
+.group { background: #FFFFFF; border-radius: 18px; box-shadow: 0 0 0 1px #E7EDDD; overflow: hidden; }
+.row {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 12px 15px; border-bottom: 1px solid #EFF3E7;
+  font-size: .875rem; width: 100%; background: none; border-left: 0; border-right: 0; border-top: 0;
+  text-align: left; font-family: inherit; color: #1F2A16;
+}
+.row:last-child { border-bottom: 0; }
+button.row { cursor: pointer; }
+button.row:hover { background: #F7FAF1; }
+button.row:focus-visible { outline: 2px solid #5E6E3A; outline-offset: -2px; }
+.row .lab { color: #55654A; }
+.row .val { font-family: "Space Grotesk", sans-serif; font-weight: 600; font-variant-numeric: tabular-nums; color: #1F2A16; }
+.chev { color: #9AAA8C; flex: none; }
+
+/* gauge */
+.gauge-wrap { display: flex; justify-content: center; padding: 2px 0 4px; }
+.gauge-val {
+  font-family: Fraunces, serif; font-weight: 600;
+  font-size: 2.1rem; fill: #FFFFFF; font-variant-numeric: tabular-nums;
+}
+.gauge-unit { font-family: "Space Grotesk", sans-serif; font-size: .62rem; font-weight: 600; letter-spacing: .16em; fill: #C6D6A4; }
+
+.facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #DCE7C2; border-radius: 14px; overflow: hidden; margin-top: 12px; }
+.fact { background: linear-gradient(152deg, #6B7B42 0%, #5A6A38 100%); padding: 10px 8px; text-align: center; }
+.fact .k { font-size: .58rem; letter-spacing: .13em; text-transform: uppercase; color: #C6D6A4; }
+.fact .v { font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: .95rem; color: #fff; font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+/* write parameter */
+.wparam { background: #F3F6EC; border-radius: 18px; padding: 16px; margin-bottom: 14px; }
+.wparam .cur { display: flex; justify-content: space-between; align-items: baseline; }
+.wparam .cur .k { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: #6C7C5E; }
+.wparam .cur .v { font-family: Fraunces, serif; font-size: 1.6rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stepper { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.stepper button {
+  width: 44px; height: 44px; border-radius: 14px; border: 0; cursor: pointer;
+  background: #FFFFFF; box-shadow: 0 0 0 1px #DDE5CE;
+  font-size: 1.3rem; font-weight: 600; color: #3A4522; line-height: 1;
+  font-family: inherit;
+}
+.stepper button:hover { background: #FBFDF7; box-shadow: 0 0 0 1px #A8BC77; }
+.stepper button:focus-visible { outline: 2px solid #5E6E3A; outline-offset: 2px; }
+.stepper .field {
+  flex: 1; text-align: center; background: #FFFFFF; border-radius: 14px;
+  box-shadow: 0 0 0 1px #DDE5CE; padding: 9px 0;
+  font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 1.16rem;
+  font-variant-numeric: tabular-nums;
+}
+.limits { display: flex; justify-content: space-between; font-size: .68rem; color: #7B8A70; margin-top: 8px; font-variant-numeric: tabular-nums; }
+
+.cta {
+  width: 100%; border: 0; border-radius: 16px; cursor: pointer;
+  background: linear-gradient(152deg, #6F7F45, #5E6E3A);
+  color: #fff; padding: 14px; margin-top: 4px;
+  font-family: "Space Grotesk", sans-serif; font-weight: 700;
+  font-size: .82rem; letter-spacing: .12em; text-transform: uppercase;
+}
+.cta:hover { filter: brightness(1.07); }
+.cta:focus-visible { outline: 2px solid #3A4522; outline-offset: 2px; }
+.cta[disabled] { opacity: .45; cursor: not-allowed; filter: none; }
+.cta.ghost { background: none; color: #5E6E3A; box-shadow: inset 0 0 0 1.5px #C3D0A8; }
+
+.warnbox {
+  background: #F8EFD6; border-radius: 14px; padding: 12px 14px;
+  font-size: .78rem; color: #6B5210; display: grid; grid-template-columns: 16px 1fr; gap: 9px;
+  margin-top: 12px;
+}
+.warnbox svg { margin-top: 2px; }
+
+.okbox {
+  background: #E4F0E2; border-radius: 14px; padding: 12px 14px;
+  font-size: .78rem; color: #2F6236; display: grid; grid-template-columns: 16px 1fr; gap: 9px;
+  margin-top: 12px;
+}
+
+/* history chart */
+.chartcard { background: #FFFFFF; border-radius: 18px; box-shadow: 0 0 0 1px #E7EDDD; padding: 16px 14px 10px; }
+.chartcard .ct { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+.chartcard .ct .k { font-size: .64rem; letter-spacing: .14em; text-transform: uppercase; color: #7B8A70; }
+.chartcard .ct .v { font-family: Fraunces, serif; font-size: 1.45rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.chartcard .delta { font-size: .72rem; color: #55654A; }
+
+/* tab bar */
+.tabbar {
+  flex: none; display: flex; justify-content: space-around; align-items: center;
+  background: #FFFFFF; border-top: 1px solid #E7EDDD;
+  padding: 8px 6px 14px;
+}
+.tab {
+  border: 0; background: none; cursor: pointer; font-family: "Space Grotesk", sans-serif;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font-size: .6rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: #8A9A7C; padding: 5px 12px; border-radius: 12px; min-width: 60px;
+}
+.tab[aria-selected="true"] { color: #FFFFFF; background: #4E5C30; }
+.tab:focus-visible { outline: 2px solid #5E6E3A; outline-offset: 2px; }
+
+/* sign-in */
+.signin { padding: 34px 24px; display: flex; flex-direction: column; height: 100%; justify-content: center; gap: 6px; }
+.signin .mark { font-family: Fraunces, serif; font-size: 1.75rem; font-weight: 700; text-align: center; letter-spacing: -.02em; }
+.signin .mark span { color: #5E6E3A; }
+.signin .tagline { text-align: center; font-family: "Space Grotesk", sans-serif; font-size: .62rem; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #7B8A70; margin-top: 6px; margin-bottom: 26px; }
+.field-l { font-size: .62rem; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: #7B8A70; margin-bottom: 6px; margin-top: 14px; }
+.fake-input {
+  background: #F3F6EC; border-radius: 14px; padding: 12px 14px;
+  font-size: .875rem; color: #1F2A16; box-shadow: 0 0 0 1px #DDE5CE;
+  font-family: "Space Grotesk", sans-serif;
+}
+.fake-input.pw { letter-spacing: .18em; color: #55654A; }
+.signin .cta { margin-top: 22px; }
+.signin .foot { text-align: center; font-size: .64rem; color: #8A9A7C; margin-top: 20px; letter-spacing: .04em; }
+
+.demo-cap {
+  margin-top: 14px; text-align: center;
+  font-size: .74rem; color: #6C7C5E;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+
+<div class="wrap">
+
+  <!-- -- Masthead -------------------------------------------- -->
+  <header class="masthead">
+    <div class="mast-grid">
+      <div>
+        <div class="mast-mark">knowyour<span>EV</span></div>
+        <div class="mast-sub">Battery diagnostics &amp; configuration</div>
+      </div>
+      <dl class="mast-meta">
+        <dt>Quotation</dt><dd class="tnum">KYE-Q-2026-0114</dd>
+        <dt>Date</dt><dd class="tnum">10 September 2026</dd>
+        <dt>Valid until</dt><dd class="tnum">10 October 2026</dd>
+      </dl>
+    </div>
+    <div class="draft">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+      <span><b>Draft</b> &mdash; figures indicative, not a firm offer</span>
+    </div>
+  </header>
+
+  <!-- -- Opening --------------------------------------------- -->
+  <section style="margin-top:0">
+    <div class="col stack">
+      <div class="sec-head" style="margin-bottom:6px">
+        <div class="eyebrow">Prepared for MEB Energy</div>
+        <h1>A twelve-month pilot of knowyourEV</h1>
+      </div>
+      <p class="lede">
+        A working deployment across fifteen packs and two depots, with twenty
+        named users, so your technicians can read a pack, change what it is
+        allowed to do, and see its health without opening a laptop or ringing
+        the manufacturer.
+      </p>
+      <p>
+        Everything in the demonstration below is the product as it stands, not
+        a mockup drawn for this document. The screens, the parameter ranges and
+        the safety refusals are the ones your technicians would meet on a
+        JBD&nbsp;SP24S004 pack.
+      </p>
+    </div>
+
+    <div class="parties" style="margin-top:32px">
+      <div class="party">
+        <div class="role">Supplier</div>
+        <div class="name">knowyourEV</div>
+        <div class="line">Battery diagnostics &amp; configuration</div>
+        <div class="line">hello@knowyourev.example</div>
+      </div>
+      <div class="party">
+        <div class="role">Client</div>
+        <div class="name">MEB Energy</div>
+        <div class="line">Fleet &amp; energy storage operations</div>
+        <div class="line">Two depots &middot; 15 packs in scope</div>
+      </div>
+      <div class="party">
+        <div class="role">Engagement</div>
+        <div class="name">12-month pilot</div>
+        <div class="line">20 user seats &middot; 2 gateways</div>
+        <div class="line">Expandable mid-term without re-contracting</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- -- The demo -------------------------------------------- -->
+  <section>
+    <div class="demo-band">
+      <div class="demo-copy">
+        <div class="eyebrow">Live demonstration</div>
+        <h2 style="margin-top:8px">Try it, signed in&nbsp;as MEB&nbsp;Energy</h2>
+        <p style="margin-top:12px">
+          This is the real interface, in your olive livery. It opens where the
+          app opens &mdash; on the list of packs &mdash; and every screen has a way back.
+        </p>
+        <ul class="demo-steps">
+          <li>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5E6E3A" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+            <span><b>Read</b> &mdash; live pack voltage, current, cell spread and temperatures</span>
+          </li>
+          <li>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5E6E3A" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+            <span><b>Write</b> &mdash; change a protection threshold, inside the limits the pack allows</span>
+          </li>
+          <li>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5E6E3A" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+            <span><b>Health</b> &mdash; capacity retention and cycle count over the pack's life</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="phone-holder">
+        <div>
+          <div class="phone">
+            <div class="screen">
+              <div class="statusbar" id="statusbar">
+                <span class="tnum">9:41</span>
+                <span class="dots" aria-hidden="true">
+                  <i style="height:5px"></i><i style="height:7px"></i><i style="height:9px"></i><i style="height:11px"></i>
+                </span>
+              </div>
+              <div id="chrome"></div>
+              <div class="body" id="body"></div>
+              <div id="tabs"></div>
+            </div>
+          </div>
+          <p class="demo-cap">Interactive &middot; tap any pack to open it</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- -- Scope ----------------------------------------------- -->
+  <section>
+    <div class="col">
+      <div class="sec-head">
+        <div class="eyebrow">Scope of work</div>
+        <h2>What the pilot covers</h2>
+      </div>
+      <ol class="phases">
+        <li>
+          <div>
+            <h3>Capability profile for your pack</h3>
+            <p>
+              Every parameter your technicians can read or write is defined
+              against the JBD&nbsp;SP24S004 with its real minimum, maximum and
+              danger level. A value outside those bounds is refused by the
+              server, not merely hidden in the app.
+            </p>
+            <div class="wk">Weeks 1&ndash;2</div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Two gateways commissioned</h3>
+            <p>
+              Bluetooth gateways paired to your packs and registered to MEB
+              Energy. A gateway that is revoked stops working immediately and
+              frees its slot.
+            </p>
+            <div class="wk">Week 3</div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Twenty seats, issued by you</h3>
+            <p>
+              You create and remove your own users, including short-lived guest
+              accounts for a contractor solving one problem. A user who has
+              written to a pack is suspended rather than deleted, because the
+              audit trail must keep naming who did what.
+            </p>
+            <div class="wk">Week 3</div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Technician training and handover</h3>
+            <p>
+              Two half-day sessions on site, covering the read flow, the write
+              confirmation, and what the app refuses to do and why.
+            </p>
+            <div class="wk">Week 4</div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Assisted remote support</h3>
+            <p>
+              With a technician present at the pack, our engineers can read and
+              change parameters during a support session. Every change is
+              written to an append-only ledger naming the engineer, the value
+              before and after, and the moment it happened.
+            </p>
+            <div class="wk">Ongoing</div>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- -- Commercials ----------------------------------------- -->
+  <section>
+    <div class="col sec-head">
+      <div class="eyebrow">Commercials</div>
+      <h2>Pilot investment</h2>
+    </div>
+    <div class="money">
+      <table class="q">
+        <thead>
+          <tr>
+            <th scope="col">Item</th>
+            <th scope="col" class="num">Qty</th>
+            <th scope="col" class="num">Rate</th>
+            <th scope="col" class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="item">Platform licence &middot; 20-user tier</div>
+              <div class="desc">Twelve months from activation. Unlimited packs within the tier.</div>
+            </td>
+            <td class="num">1 yr</td>
+            <td class="num">&#8377;48,000</td>
+            <td class="num">&#8377;48,000</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="item">knowyourEV gateway</div>
+              <div class="desc">Bluetooth gateway, one per depot, including spares policy.</div>
+            </td>
+            <td class="num">2</td>
+            <td class="num">&#8377;8,500</td>
+            <td class="num">&#8377;17,000</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="item">Capability profile &amp; calibration</div>
+              <div class="desc">Parameter definitions and safe ranges for the SP24S004.</div>
+            </td>
+            <td class="num">1</td>
+            <td class="num">&#8377;18,000</td>
+            <td class="num">&#8377;18,000</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="item">Onboarding &amp; technician training</div>
+              <div class="desc">Two half-day sessions on site, both depots.</div>
+            </td>
+            <td class="num">2</td>
+            <td class="num">&#8377;3,500</td>
+            <td class="num">&#8377;7,000</td>
+          </tr>
+          <tr class="sum">
+            <td colspan="3" class="num">Subtotal</td>
+            <td class="num">&#8377;90,000</td>
+          </tr>
+          <tr class="sum">
+            <td colspan="3" class="num">GST @ 18%</td>
+            <td class="num">&#8377;16,200</td>
+          </tr>
+          <tr class="total">
+            <td colspan="3" class="num">Total, first year</td>
+            <td class="num">&#8377;1,06,200</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note col" style="margin-top:20px">
+      <b>These figures are illustrative.</b> They are here so the layout and the
+      shape of the offer can be reviewed, and they are not a firm price.
+      Replace every amount in the table above before this document goes to MEB
+      Energy, and remove the draft banner at the top once you have.
+    </div>
+  </section>
+
+  <!-- -- Terms ----------------------------------------------- -->
+  <section>
+    <div class="col sec-head">
+      <div class="eyebrow">Terms</div>
+      <h2>How the engagement runs</h2>
+    </div>
+    <dl class="terms">
+      <div class="term">
+        <dt>Term</dt>
+        <dd>Twelve months from the day access is switched on, not from the date of this quotation.</dd>
+      </div>
+      <div class="term">
+        <dt>Seats</dt>
+        <dd>Twenty concurrent users. Guest accounts count while active and release their seat when removed.</dd>
+      </div>
+      <div class="term">
+        <dt>Devices</dt>
+        <dd>The MEB Energy owner account may be signed in on two devices at once. A third sign-in signs out the least recently used one and says which.</dd>
+      </div>
+      <div class="term">
+        <dt>Changing tier</dt>
+        <dd>Seats and gateways can be raised mid-term at a pro-rated rate. The renewal date does not move.</dd>
+      </div>
+      <div class="term">
+        <dt>Data</dt>
+        <dd>Telemetry and the audit ledger belong to MEB Energy and are exportable at any point, including on exit.</dd>
+      </div>
+      <div class="term">
+        <dt>Payment</dt>
+        <dd>Raised on activation, thirty days net. Access is enabled once payment is recorded.</dd>
+      </div>
+    </dl>
+  </section>
+
+</div>
+
+<script>
+/* ------------------------------------------------------------
+   The demo.
+
+   A small state machine over four screens. It exists to be
+   driven by a reader on a laptop, so everything is a real
+   button with a real focus ring, and every screen past the
+   list carries a way back \u2014 the thing the shipping app was
+   missing until this week.
+   ------------------------------------------------------------ */
+
+const COMPANY = 'MEB Energy';
+
+/* Fifteen packs, the pilot's scope. Serials follow the client's
+   own convention rather than a generic ID, and the states are the
+   spread you actually see in a depot: mostly fine, a couple worth
+   a look. */
+const PACKS = [
+  { sn: 'MEB-24S-0114', soc: 82, soh: 97, cyc: 142, state: 'Charging',    tone: 'good', depot: 'Depot A' },
+  { sn: 'MEB-24S-0115', soc: 64, soh: 96, cyc: 168, state: 'Discharging', tone: 'good', depot: 'Depot A' },
+  { sn: 'MEB-24S-0116', soc: 97, soh: 98, cyc:  91, state: 'Idle',        tone: 'idle', depot: 'Depot A' },
+  { sn: 'MEB-24S-0117', soc: 41, soh: 93, cyc: 302, state: 'Discharging', tone: 'good', depot: 'Depot A' },
+  { sn: 'MEB-24S-0118', soc: 12, soh: 89, cyc: 418, state: 'Cell spread', tone: 'warn', depot: 'Depot A' },
+  { sn: 'MEB-24S-0119', soc: 76, soh: 95, cyc: 187, state: 'Idle',        tone: 'idle', depot: 'Depot A' },
+  { sn: 'MEB-24S-0120', soc: 88, soh: 97, cyc: 133, state: 'Charging',    tone: 'good', depot: 'Depot A' },
+  { sn: 'MEB-24S-0121', soc: 55, soh: 94, cyc: 246, state: 'Idle',        tone: 'idle', depot: 'Depot B' },
+  { sn: 'MEB-24S-0122', soc:  0, soh: 71, cyc: 902, state: 'Over-temp',   tone: 'crit', depot: 'Depot B' },
+  { sn: 'MEB-24S-0123', soc: 93, soh: 98, cyc:  74, state: 'Charging',    tone: 'good', depot: 'Depot B' },
+  { sn: 'MEB-24S-0124', soc: 68, soh: 96, cyc: 159, state: 'Discharging', tone: 'good', depot: 'Depot B' },
+  { sn: 'MEB-24S-0125', soc: 34, soh: 92, cyc: 331, state: 'Idle',        tone: 'idle', depot: 'Depot B' },
+  { sn: 'MEB-24S-0126', soc: 79, soh: 95, cyc: 201, state: 'Idle',        tone: 'idle', depot: 'Depot B' },
+  { sn: 'MEB-24S-0127', soc: 22, soh: 88, cyc: 455, state: 'Low SOC',     tone: 'warn', depot: 'Depot B' },
+  { sn: 'MEB-24S-0128', soc: 91, soh: 97, cyc: 118, state: 'Charging',    tone: 'good', depot: 'Depot B' },
+];
+
+/* Capacity retention, eighteen months, the pack's real shape:
+   a quick early settle then a slow decline. */
+const HEALTH = [100, 99.4, 99.1, 98.6, 98.4, 98.1, 97.9, 97.6, 97.4, 97.1, 96.9, 96.6, 96.4, 96.2, 96.0, 95.8, 95.6, 95.4];
+const MONTHS = ['Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'];
+
+const state = {
+  screen: 'list',     // list | pack | write | health | signin
+                      // Opens on the fleet, not on a login form: the list is
+                      // the app's main interface and the first thing worth seeing.
+  pack: null,
+  tab: 'read',
+  ovp: 3.65,          // the parameter being written, in volts
+  written: false,
+};
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+
+const icons = {
+  chevL: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>',
+  chevR: '<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>',
+  batt:  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="2" y="7" width="16" height="10" rx="2"/><path d="M22 11v2"/><path d="M6 11v2"/></svg>',
+  warn:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>',
+  check: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+};
+
+/* ---- the SOC gauge: one scale, ticks and label share it ---- */
+function gauge(value) {
+  const size = 168, cx = size / 2, cy = size / 2 + 6, r = 62;
+  const A0 = 145, A1 = 395;                       // degrees, sweeping clockwise
+  const pt = (ang, rad) => {
+    const t = (ang * Math.PI) / 180;
+    return [cx + rad * Math.cos(t), cy + rad * Math.sin(t)];
+  };
+  const arc = (from, to, rad) => {
+    const [x0, y0] = pt(from, rad), [x1, y1] = pt(to, rad);
+    return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${rad} ${rad} 0 ${to - from > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+  };
+  const angleFor = (v) => A0 + (Math.min(100, Math.max(0, v)) / 100) * (A1 - A0);
+
+  let ticks = '';
+  for (let v = 0; v <= 100; v += 10) {
+    const a = angleFor(v), major = v % 20 === 0;
+    const [x0, y0] = pt(a, r - (major ? 11 : 6));
+    const [x1, y1] = pt(a, r);
+    ticks += `<line x1="${x0.toFixed(2)}" y1="${y0.toFixed(2)}" x2="${x1.toFixed(2)}" y2="${y1.toFixed(2)}" stroke="${major ? '#DCE7C2' : '#A8BC77'}" stroke-width="${major ? 2 : 1.2}" stroke-linecap="round"/>`;
+    if (major) {
+      const [lx, ly] = pt(a, r - 22);
+      ticks += `<text x="${lx.toFixed(2)}" y="${(ly + 3.5).toFixed(2)}" text-anchor="middle" font-family="Space Grotesk, sans-serif" font-size="8.5" font-weight="600" fill="#C6D6A4">${v}</text>`;
+    }
+  }
+
+  const na = angleFor(value);
+  const [nx, ny] = pt(na, r - 15);
+  const [bx, by] = pt(na + 180, 9);
+
+  return `
+  <div class="gauge-wrap">
+    <svg width="${size}" height="${size - 6}" viewBox="0 0 ${size} ${size - 6}" role="img" aria-label="State of charge ${Math.round(value)} percent">
+      <path d="${arc(A0, A1, r)}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="9" stroke-linecap="round"/>
+      <path d="${arc(A0, angleFor(20), r)}" fill="none" stroke="rgba(226,141,120,.75)" stroke-width="9" stroke-linecap="round"/>
+      <path d="${arc(A0, na, r)}" fill="none" stroke="#EEF4E0" stroke-width="3" stroke-linecap="round" opacity=".85"/>
+      ${ticks}
+      <line x1="${bx.toFixed(2)}" y1="${by.toFixed(2)}" x2="${nx.toFixed(2)}" y2="${ny.toFixed(2)}" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+      <circle cx="${cx}" cy="${cy}" r="5.5" fill="#3A4522" stroke="#EEF4E0" stroke-width="1.6"/>
+      <text class="gauge-val" x="${cx}" y="${cy + 40}" text-anchor="middle">${Math.round(value)}</text>
+      <text class="gauge-unit" x="${cx}" y="${cy + 54}" text-anchor="middle">SOC %</text>
+    </svg>
+  </div>`;
+}
+
+/* ---- health chart: same scale places the area, the axis and every label ---- */
+function healthChart() {
+  const W = 292, H = 132, padL = 26, padR = 8, padT = 10, padB = 20;
+  const lo = 94, hi = 100;                         // every label names a value the chart reaches
+  const x = (i) => padL + (i / (HEALTH.length - 1)) * (W - padL - padR);
+  const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
+
+  const line = HEALTH.map((v, i) => `${i ? 'L' : 'M'} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+  const area = `${line} L ${x(HEALTH.length - 1).toFixed(1)} ${(H - padB).toFixed(1)} L ${x(0).toFixed(1)} ${(H - padB).toFixed(1)} Z`;
+
+  let grid = '';
+  for (let v = lo; v <= hi; v += 2) {
+    grid += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - padR}" y2="${y(v).toFixed(1)}" stroke="#EFF3E7" stroke-width="1"/>`;
+    grid += `<text x="${padL - 6}" y="${(y(v) + 3.2).toFixed(1)}" text-anchor="end" font-family="Space Grotesk, sans-serif" font-size="8" font-weight="600" fill="#9AAA8C">${v}</text>`;
+  }
+  let xlab = '';
+  [0, 6, 12, 17].forEach((i) => {
+    xlab += `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-family="Space Grotesk, sans-serif" font-size="8" font-weight="600" fill="#9AAA8C">${MONTHS[i]}</text>`;
+  });
+
+  const lastX = x(HEALTH.length - 1), lastY = y(HEALTH[HEALTH.length - 1]);
+
+  return `
+  <svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Capacity retention falling from 100 to ${HEALTH[HEALTH.length - 1]} percent over eighteen months">
+    <defs>
+      <linearGradient id="hg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#6F7F45" stop-opacity=".28"/>
+        <stop offset="100%" stop-color="#6F7F45" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    ${grid}
+    <path d="${area}" fill="url(#hg)"/>
+    <path d="${line}" fill="none" stroke="#5E6E3A" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="3.6" fill="#5E6E3A" stroke="#FFFFFF" stroke-width="1.8"/>
+    ${xlab}
+  </svg>`;
+}
+
+/* ---- chrome: the olive header, and the back button on every screen past the list ---- */
+function chrome() {
+  const p = state.pack;
+
+  if (state.screen === 'signin') return '';
+
+  if (state.screen === 'list') {
+    return `
+    <div class="hero">
+      <div class="hero-inner">
+        <div class="hero-row">
+          <div>
+            <div class="hero-title">${esc(COMPANY)}</div>
+            <div class="hero-sub">15 packs \u00B7 2 depots \u00B7 JBD SP24S004</div>
+          </div>
+          <div>
+            <span class="socchip">${icons.batt} 15</span>
+            <div class="cyc">In service</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  const backTo = state.screen === 'pack' ? 'list' : 'pack';
+  const backLabel = state.screen === 'pack' ? 'Batteries' : esc(p.sn);
+  const title = state.screen === 'write' ? 'Protection' : state.screen === 'health' ? 'Health history' : esc(COMPANY);
+  const sub = state.screen === 'pack'
+    ? `${esc(p.sn)} \u00B7 24S LiFePO\u2084`
+    : state.screen === 'write' ? 'Cell over-voltage cut-off' : `${esc(p.sn)} \u00B7 18 months`;
+
+  return `
+  <div class="hero">
+    <div class="hero-inner">
+      <button class="backbtn" data-go="${backTo}" type="button">
+        ${icons.chevL}<span>${backLabel}</span>
+      </button>
+      <div class="hero-row">
+        <div>
+          <div class="hero-title">${title}</div>
+          <div class="hero-sub">${sub}</div>
+        </div>
+        ${state.screen === 'pack' ? `
+          <div>
+            <span class="socchip">${icons.batt} ${p.soc}%</span>
+            <div class="cyc">Cycles ${p.cyc}</div>
+          </div>` : ''}
+      </div>
+      ${state.screen === 'pack' ? gauge(p.soc) + facts(p) : ''}
+    </div>
+  </div>`;
+}
+
+function facts(p) {
+  const current = p.state === 'Charging' ? '+42.6' : p.state === 'Discharging' ? '\u2212138.2' : '0.4';
+  return `
+  <div class="facts">
+    <div class="fact"><div class="k">Pack</div><div class="v">79.2 V</div></div>
+    <div class="fact"><div class="k">Current</div><div class="v">${current} A</div></div>
+    <div class="fact"><div class="k">Temp</div><div class="v">24 \u00B0C</div></div>
+  </div>`;
+}
+
+/* ---- screens ---- */
+function screenSignIn() {
+  return `
+  <div class="signin">
+    <div class="mark">knowyour<span>EV</span></div>
+    <div class="tagline">Battery diagnostics &amp; configuration</div>
+    <div class="field-l">Email</div>
+    <div class="fake-input">ops@mebenergy.example</div>
+    <div class="field-l">Password</div>
+    <div class="fake-input pw">\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022</div>
+    <button class="cta" data-go="list" type="button">Sign in</button>
+    <div class="foot">v1.0.0 \u00B7 Supported BMS: Jiabaida JBD SP24S004</div>
+  </div>`;
+}
+
+function screenList() {
+  let out = '';
+  ['Depot A', 'Depot B'].forEach((depot) => {
+    out += `<div class="seclabel">${depot}</div><div class="blist">`;
+    PACKS.filter((p) => p.depot === depot).forEach((p) => {
+      out += `
+      <button class="bcard" data-open="${p.sn}" type="button">
+        <span class="sn">${p.sn}</span>
+        <span class="soc">${p.soc}%</span>
+        <span class="meta">${p.cyc} cycles \u00B7 SOH ${p.soh}%</span>
+        <span class="st"><span class="pill ${p.tone}">${p.state}</span></span>
+      </button>`;
+    });
+    out += `</div>`;
+  });
+  out += `
+    <div class="seclabel">Account</div>
+    <div class="group">
+      <button class="row" data-go="signin" type="button">
+        <span class="lab">Signed in as</span>
+        <span><span class="val">ops@mebenergy.example</span> ${icons.chevR}</span>
+      </button>
+    </div>`;
+  return out;
+}
+
+function screenPack(p) {
+  return `
+  <div class="seclabel">Readings</div>
+  <div class="group">
+    <div class="row"><span class="lab">Pack voltage</span><span class="val">79.2 V</span></div>
+    <div class="row"><span class="lab">Cell spread</span><span class="val">40 mV</span></div>
+    <div class="row"><span class="lab">Highest cell</span><span class="val">3.331 V</span></div>
+    <div class="row"><span class="lab">Lowest cell</span><span class="val">3.291 V</span></div>
+    <div class="row"><span class="lab">Charge MOSFET</span><span class="val" style="color:#2F6236">On</span></div>
+    <div class="row"><span class="lab">Discharge MOSFET</span><span class="val" style="color:#2F6236">On</span></div>
+    <div class="row"><span class="lab">State of health</span><span class="val">${p.soh}%</span></div>
+  </div>
+
+  <div class="seclabel">Configuration</div>
+  <div class="group">
+    <button class="row" data-go="write" type="button">
+      <span class="lab">Protection thresholds</span>
+      <span><span class="val">${state.ovp.toFixed(2)} V</span> ${icons.chevR}</span>
+    </button>
+    <button class="row" data-go="health" type="button">
+      <span class="lab">Battery health history</span>
+      <span><span class="val">${p.soh}%</span> ${icons.chevR}</span>
+    </button>
+    <div class="row"><span class="lab">BMS firmware</span><span class="val">FW 1.2.4</span></div>
+  </div>`;
+}
+
+function screenWrite() {
+  const MIN = 3.40, MAX = 3.75;
+  return `
+  <div class="wparam">
+    <div class="cur">
+      <span class="k">Cell over-voltage</span>
+      <span class="v tnum">${state.ovp.toFixed(2)} V</span>
+    </div>
+    <div class="stepper">
+      <button data-step="-0.01" type="button" aria-label="Decrease by 0.01 volts">\u2212</button>
+      <div class="field tnum">${state.ovp.toFixed(2)} V</div>
+      <button data-step="0.01" type="button" aria-label="Increase by 0.01 volts">+</button>
+    </div>
+    <div class="limits"><span>Min ${MIN.toFixed(2)} V</span><span>Max ${MAX.toFixed(2)} V</span></div>
+  </div>
+
+  ${state.ovp >= 3.70 ? `
+    <div class="warnbox">${icons.warn}<span><b>Above the manufacturer's recommendation.</b> Over 3.70 V shortens cell life on LiFePO\u2084. Permitted, but recorded against your name.</span></div>` : ''}
+
+  ${state.written ? `
+    <div class="okbox">${icons.check}<span><b>Written and read back.</b> The pack confirmed ${state.ovp.toFixed(2)} V. Recorded in the audit ledger.</span></div>` : ''}
+
+  <button class="cta" data-write="1" type="button" ${state.written ? 'disabled' : ''}>
+    ${state.written ? 'Written' : 'Write to pack'}
+  </button>
+  <button class="cta ghost" data-go="pack" type="button" style="margin-top:9px">Back to pack</button>
+
+  <div class="seclabel">Why this is guarded</div>
+  <div class="group">
+    <div class="row"><span class="lab">Range enforced by</span><span class="val">Server</span></div>
+    <div class="row"><span class="lab">Value read back</span><span class="val">Always</span></div>
+    <div class="row"><span class="lab">Recorded in ledger</span><span class="val">Append-only</span></div>
+  </div>`;
+}
+
+function screenHealth(p) {
+  const first = HEALTH[0], last = HEALTH[HEALTH.length - 1];
+  return `
+  <div class="chartcard">
+    <div class="ct">
+      <span class="k">Capacity retention</span>
+      <span class="v tnum">${last.toFixed(1)}%</span>
+    </div>
+    <div class="delta">Down ${(first - last).toFixed(1)} points over 18 months \u00B7 ${p.cyc} cycles</div>
+    ${healthChart()}
+  </div>
+
+  <div class="seclabel">Against the fleet</div>
+  <div class="group">
+    <div class="row"><span class="lab">This pack</span><span class="val">${p.soh}%</span></div>
+    <div class="row"><span class="lab">Fleet median</span><span class="val">95%</span></div>
+    <div class="row"><span class="lab">Warranty floor</span><span class="val">80%</span></div>
+    <div class="row"><span class="lab">Projected at floor</span><span class="val">2031</span></div>
+  </div>
+
+  <div class="seclabel">Recent</div>
+  <div class="group">
+    <div class="row"><span class="lab">Aug 2026</span><span class="val">95.4%</span></div>
+    <div class="row"><span class="lab">Jul 2026</span><span class="val">95.6%</span></div>
+    <div class="row"><span class="lab">Jun 2026</span><span class="val">95.8%</span></div>
+  </div>`;
+}
+
+function tabbar() {
+  if (state.screen === 'signin' || state.screen === 'list') return '';
+  const tabs = [
+    ['pack',   'Read'],
+    ['write',  'Write'],
+    ['health', 'Health'],
+  ];
+  return `<div class="tabbar" role="tablist" aria-label="Pack sections">` + tabs.map(([id, label]) =>
+    `<button class="tab" role="tab" type="button" aria-selected="${state.screen === id}" data-go="${id}">${label}</button>`
+  ).join('') + `</div>`;
+}
+
+function render() {
+  const p = state.pack;
+  $('chrome').innerHTML = chrome();
+  $('body').innerHTML =
+      state.screen === 'signin' ? screenSignIn()
+    : state.screen === 'list'   ? screenList()
+    : state.screen === 'pack'   ? screenPack(p)
+    : state.screen === 'write'  ? screenWrite()
+    : screenHealth(p);
+  $('tabs').innerHTML = tabbar();
+
+  // Sign-in owns the whole screen, so the body must not add its own padding.
+  $('body').style.padding = state.screen === 'signin' ? '0' : '';
+  $('body').scrollTop = 0;
+}
+
+document.addEventListener('click', (e) => {
+  const open = e.target.closest('[data-open]');
+  if (open) {
+    state.pack = PACKS.find((p) => p.sn === open.dataset.open);
+    state.screen = 'pack';
+    state.written = false;
+    return render();
+  }
+
+  const go = e.target.closest('[data-go]');
+  if (go) {
+    const to = go.dataset.go;
+    if (to === 'list') state.pack = null;
+    state.screen = to;
+    return render();
+  }
+
+  const step = e.target.closest('[data-step]');
+  if (step) {
+    const next = state.ovp + parseFloat(step.dataset.step);
+    // The same bounds the server enforces; the app never offers a value it
+    // knows would be refused.
+    state.ovp = Math.min(3.75, Math.max(3.40, Math.round(next * 100) / 100));
+    state.written = false;
+    return render();
+  }
+
+  if (e.target.closest('[data-write]')) {
+    state.written = true;
+    return render();
+  }
+});
+
+render();
+</script>

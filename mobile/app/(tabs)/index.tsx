@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
-import { Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { BatteryMedium, MapPin, Zap } from 'lucide-react-native';
+import { BatteryMedium, ChevronLeft, MapPin, Zap } from 'lucide-react-native';
 
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { radii, space } from '../../src/theme/tokens';
@@ -68,6 +68,29 @@ export default function Dashboard() {
       <LeatherPanel tone="hero" radius={0} style={{ paddingTop: topInset + 8, paddingBottom: 28 }}>
         <View style={styles.header}>
           <View style={{ flexShrink: 1 }}>
+            {/*
+             * The way back to the battery list.
+             *
+             * Choosing a pack used to be one-way: every other screen has a
+             * Back, but the Dashboard is the top of its own stack, so the only
+             * route back to the list was a row buried in Settings. Somebody
+             * who picked the wrong pack had no way to say so.
+             *
+             * `replace` rather than `push` because this is leaving the pack,
+             * not stacking a screen over it — pushing would leave the old
+             * battery's Dashboard underneath, reachable by a system back
+             * gesture, showing readings for a pack the user has left.
+             */}
+            <Pressable
+              onPress={() => router.replace('/batteries')}
+              accessibilityRole="button"
+              accessibilityLabel="Back to batteries"
+              hitSlop={12}
+              style={styles.back}
+            >
+              <ChevronLeft size={16} color={p.leatherInkSoft} strokeWidth={2.4} />
+              <Text style={[T.tabLabel, { color: p.leatherInkSoft }]}>Batteries</Text>
+            </Pressable>
             <Text style={[T.screenTitle, { color: p.leatherInk }]}>{COMPANY}</Text>
             <Text style={[T.screenSub, { color: p.leatherInkSoft, marginTop: 7 }]}>
               {BATTERY_ID} · {profile.cellCount}S {profile.chemistry}
@@ -235,6 +258,14 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
+  // 44pt minimum declared outright rather than relying on content plus hitSlop.
+  back: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    minHeight: 44,
+    marginLeft: -4,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -1,10 +1,11 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn(), canGoBack: () => true }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace, back: jest.fn(), canGoBack: () => true }),
 }));
 
 import Dashboard from '../app/(tabs)/index';
@@ -64,6 +65,7 @@ const snapshot = (over: Partial<BatterySnapshot> = {}): BatterySnapshot => {
 beforeEach(() => {
   jest.spyOn(Date, 'now').mockReturnValue(FROZEN_NOW);
   mockPush.mockClear();
+  mockReplace.mockClear();
   useTelemetryStore.setState({ snapshot: snapshot(), history: [] });
   useActivityStore.setState({ entries: [], unseenAdminEntryId: null });
 });
@@ -236,6 +238,44 @@ describe('passive change banner', () => {
  * The mock emits every 500 ms, so this could not be caught on the web target —
  * only by moving the snapshot's timestamp into the past.
  */
+/**
+ * Choosing a pack used to be one-way. Every other screen has a Back; the
+ * Dashboard is the top of its own stack, so the only route back to the list
+ * was a row buried in Settings, and somebody who picked the wrong pack had no
+ * way to say so.
+ */
+describe('getting back to the battery list', () => {
+  it('offers a way back from the Dashboard', async () => {
+    const q = await wrap();
+    expect(q.getByLabelText('Back to batteries')).toBeTruthy();
+  });
+
+  it('goes to the battery list when pressed', async () => {
+    const q = await wrap();
+    await fireEvent.press(q.getByLabelText('Back to batteries'));
+    expect(mockReplace).toHaveBeenCalledWith('/batteries');
+  });
+
+  /**
+   * Leaving the pack, not stacking over it. A push would leave the old
+   * battery's Dashboard underneath, reachable by a system back gesture and
+   * showing live readings for a pack the user has left.
+   */
+  it('replaces rather than stacking, so the old pack is not behind it', async () => {
+    const q = await wrap();
+    await fireEvent.press(q.getByLabelText('Back to batteries'));
+    expect(mockPush).not.toHaveBeenCalledWith('/batteries');
+  });
+
+  /** A 44pt target: this is used in gloves, in a workshop. */
+  it('is big enough to hit', async () => {
+    const q = await wrap();
+    const style = q.getByLabelText('Back to batteries').props.style;
+    const flat = Array.isArray(style) ? Object.assign({}, ...style.flat()) : style;
+    expect(flat.minHeight).toBeGreaterThanOrEqual(44);
+  });
+});
+
 describe('stale telemetry', () => {
   it('says nothing when the data is live', async () => {
     const q = await wrap();
