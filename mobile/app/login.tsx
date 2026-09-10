@@ -29,7 +29,7 @@ export default function Login() {
         style={{ flex: 1, paddingTop: topInset, paddingBottom: bottomInset + 24 }}
       >
         <View style={styles.brand}>
-          <Text style={[T.wordmark, { color: p.leatherInk }]}>knowyourEV</Text>
+          <Text style={[T.wordmark, { color: p.leatherInk }]}>KnowyourEV</Text>
           <Text style={[T.screenSub, { color: p.leatherInkSoft, marginTop: 8 }]}>
             Battery diagnostics & configuration
           </Text>

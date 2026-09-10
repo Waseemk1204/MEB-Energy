@@ -1214,7 +1214,7 @@ the form of choosing an input that fails for the wrong reason.
 The audit in §31 named three limits that were stored, shown, and never checked.
 All three are now enforced, and the subscription model they belong to is built.
 
-**Access is granted, not sold.** Payment happens outside knowyourEV. An
+**Access is granted, not sold.** Payment happens outside KnowyourEV. An
 administrator switches a company on for a year from that moment
 (`grantAccess`), picks a seat tier, and the term runs from *now* — renewing
 early forfeits the remainder, which is a real trade and is named at the call
@@ -1241,7 +1241,7 @@ user had never signed in.
 The user's requirement had two different limits in one word, and separating them
 is most of this section:
 
-- **`device_limit`** — knowyourEV gateways the company may register. Enforced in
+- **`device_limit`** — KnowyourEV gateways the company may register. Enforced in
   `registerDevice`; a revoked gateway frees its slot.
 - **`session_device_limit`** — phones and browsers the company-owner account may
   be **signed in on at once**. Default two, raisable per company by an

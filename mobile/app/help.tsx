@@ -86,7 +86,7 @@ export default function Help() {
           <PrimaryButton
             label="Export diagnostic log"
             onPress={() =>
-              Share.share({ title: 'knowyourEV diagnostic log', message: formatLog() })
+              Share.share({ title: 'KnowyourEV diagnostic log', message: formatLog() })
             }
           />
         </View>
@@ -102,7 +102,7 @@ export default function Help() {
 
       <SectionLabel>Support</SectionLabel>
       <View style={[styles.item, { backgroundColor: p.panelAlt }]}>
-        <Text style={[T.rowLabel, { color: p.inkStrong }]}>knowyourEV support</Text>
+        <Text style={[T.rowLabel, { color: p.inkStrong }]}>KnowyourEV support</Text>
         <Text style={[T.caption, { color: p.inkSoft, marginTop: 6 }]}>
           support@knowyourev.example · Quote your battery ID and, if one is running, the support
           session ID from the Support screen.

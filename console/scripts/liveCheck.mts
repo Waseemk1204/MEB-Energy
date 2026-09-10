@@ -75,7 +75,7 @@ async function asTechnician(method: string, path: string, token: string, body?: 
 }
 
 async function main() {
-  console.log(`\nknowyourEV console live check against ${API}\n`);
+  console.log(`\nKnowyourEV console live check against ${API}\n`);
 
   if (!(await fetch(`${API}/health`).catch(() => null))?.ok) {
     console.error(`Cannot reach ${API}. Start the backend first.\n`);
@@ -134,7 +134,7 @@ async function main() {
     String(granted.seats.limit));
 
   /*
-   * Two different limits, both about "devices": knowyourEV gateways, and the
+   * Two different limits, both about "devices": KnowyourEV gateways, and the
    * phones and browsers the owner account may be signed in on. They are read
    * back separately here because conflating them is the standing hazard, and
    * a live check is where a wrong column would actually show.

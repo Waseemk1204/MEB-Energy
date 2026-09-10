@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   start_date INTEGER NOT NULL,
   renewal_date INTEGER NOT NULL,
   seat_limit INTEGER NOT NULL,
-  -- knowyourEV gateways the company may register.
+  -- KnowyourEV gateways the company may register.
   device_limit INTEGER,
   -- Phones and browsers the company-owner account may be signed in on at
   -- once. A different thing from device_limit above, and named apart because

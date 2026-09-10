@@ -35,7 +35,7 @@ export default function Activity() {
 
   const onExport = () =>
     Share.share({
-      title: 'knowyourEV write history',
+      title: 'KnowyourEV write history',
       message: exportAudit(
         { entries, droppedCount },
         { battery: battery ?? 'unknown', operator: operator ?? 'unknown' }

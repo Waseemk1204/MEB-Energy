@@ -118,7 +118,7 @@ export function Companies() {
     }
 
     const deviceLimitValue = ask(
-      `knowyourEV gateways ${company.name} may register (default ${DEFAULT_DEVICE_LIMIT})`,
+      `KnowyourEV gateways ${company.name} may register (default ${DEFAULT_DEVICE_LIMIT})`,
       current?.deviceLimit ?? DEFAULT_DEVICE_LIMIT
     );
     if (deviceLimitValue === null) return;
@@ -204,7 +204,7 @@ export function Companies() {
     <>
       <h1 className="page-title">Companies</h1>
       <p className="page-sub">
-        Tenants on the platform. Payment happens outside knowyourEV — granting access here is how
+        Tenants on the platform. Payment happens outside KnowyourEV — granting access here is how
         it becomes usable, for a year from the moment you grant it.
       </p>
 

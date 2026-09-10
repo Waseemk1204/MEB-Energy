@@ -1,5 +1,5 @@
 /**
- * knowyourEV design tokens — "Bentley cluster".
+ * KnowyourEV design tokens — "Bentley cluster".
  *
  * Two materials, two meanings:
  *   leather = live primary instrumentation, always pinned

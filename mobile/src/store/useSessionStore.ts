@@ -12,7 +12,7 @@ import { useRemoteChangeStore } from './useRemoteChangeStore';
 /**
  * Session and link state for the PRD §7.4 core flow:
  *
- *   Login → Select Battery → Connect knowyourEV Device → Authenticate Device
+ *   Login → Select Battery → Connect KnowyourEV Device → Authenticate Device
  *         → Detect BMS → Battery Dashboard
  *
  * Sign-in is a real server round trip; what this store holds afterwards is UI
@@ -30,7 +30,7 @@ export type ConnectStage =
 
 /** The three steps the user is shown while a link is established. */
 export const CONNECT_STEPS: { stage: ConnectStage; label: string }[] = [
-  { stage: 'connecting', label: 'Connect knowyourEV device' },
+  { stage: 'connecting', label: 'Connect KnowyourEV device' },
   { stage: 'authenticating', label: 'Authenticate device' },
   { stage: 'detecting', label: 'Detect BMS' },
 ];
@@ -230,7 +230,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ stage: 'authenticating' });
     await wait(650);
 
-    // The app refuses to treat an unverified peripheral as a knowyourEV device.
+    // The app refuses to treat an unverified peripheral as a KnowyourEV device.
     // With BleSource wired this is the challenge/response against the gateway's
     // secure element; failing it must stop the flow here, before any read.
     set({ stage: 'detecting' });

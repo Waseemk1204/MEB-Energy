@@ -124,7 +124,7 @@ export function exportAudit(log: AuditLog, context: { battery: string; operator:
       battery: context.battery,
       operator: context.operator,
       note:
-        'Local write history from the knowyourEV app. Not the authoritative audit ' +
+        'Local write history from the KnowyourEV app. Not the authoritative audit ' +
         'ledger; entries may be missing if the cap was reached.',
       droppedCount: log.droppedCount,
       entryCount: log.entries.length,

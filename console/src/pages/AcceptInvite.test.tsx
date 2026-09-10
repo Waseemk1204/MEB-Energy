@@ -161,7 +161,7 @@ describe('after accepting', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/Your password is set/);
-    expect(alert).toHaveTextContent(/knowyourEV app/);
+    expect(alert).toHaveTextContent(/KnowyourEV app/);
     expect(screen.queryByRole('navigation', { name: 'Sections' })).not.toBeInTheDocument();
   });
 
@@ -214,7 +214,7 @@ describe('when the link does not work', () => {
     await fill(user);
     await user.click(screen.getByRole('button', { name: 'Set password and sign in' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Cannot reach knowyourEV/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Cannot reach KnowyourEV/);
   });
 
   it('leaves the form usable for another attempt', async () => {

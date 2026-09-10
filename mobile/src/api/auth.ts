@@ -47,7 +47,7 @@ const MESSAGES: Record<LoginFailure['kind'], string> = {
   // Replaced by the server's own wording, which says which of the several
   // reasons it was — expired, suspended, cancelled, never granted.
   blocked: 'This account cannot be used right now. Contact your administrator.',
-  unreachable: 'Cannot reach knowyourEV. Check your connection and try again.',
+  unreachable: 'Cannot reach KnowyourEV. Check your connection and try again.',
 };
 
 export async function login(

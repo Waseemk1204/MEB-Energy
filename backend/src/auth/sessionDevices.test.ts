@@ -70,7 +70,7 @@ describe('the limit itself', () => {
   });
 
   /**
-   * The gateway `device_limit` counts knowyourEV hardware. Two different
+   * The gateway `device_limit` counts KnowyourEV hardware. Two different
    * things called "device" is exactly how the two get conflated, so this
    * pins them apart: moving one must not move the other.
    */
@@ -241,7 +241,7 @@ describe('naming the device', () => {
     ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120.0 Safari/537', 'Chrome on Mac'],
     ['Mozilla/5.0 (Windows NT 10.0; Win64) Chrome/120 Safari/537 Edg/120', 'Edge on Windows'],
     ['Mozilla/5.0 (Linux; Android 14) Chrome/120 Mobile Safari/537', 'Chrome on Android'],
-    ['knowyourEV/1.0 CFNetwork/1490 Darwin/23.0', 'knowyourEV app'],
+    ['KnowyourEV/1.0 CFNetwork/1490 Darwin/23.0', 'KnowyourEV app'],
   ];
 
   for (const [agent, expected] of cases) {

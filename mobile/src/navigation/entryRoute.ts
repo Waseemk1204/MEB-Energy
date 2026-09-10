@@ -1,7 +1,7 @@
 /**
  * The PRD §7.4 entry flow, as a pure decision.
  *
- *   Login → Select Battery → Connect knowyourEV Device → Authenticate Device
+ *   Login → Select Battery → Connect KnowyourEV Device → Authenticate Device
  *         → Detect BMS → Battery Dashboard
  *
  * Kept separate from the navigation plumbing so the policy can be tested

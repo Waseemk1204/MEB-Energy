@@ -67,7 +67,7 @@ function clientFor(tokens: { accessToken: string; refreshToken: string }) {
 }
 
 async function main() {
-  console.log(`\nknowyourEV live check against ${API}\n`);
+  console.log(`\nKnowyourEV live check against ${API}\n`);
 
   const health = await fetch(`${API}/health`).catch(() => null);
   if (!health?.ok) {

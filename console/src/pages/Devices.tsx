@@ -11,7 +11,7 @@ import {
 } from '../api/admin';
 
 /**
- * knowyourEV gateways (PRD §8.1).
+ * KnowyourEV gateways (PRD §8.1).
  *
  * The app refuses to authenticate a device that is not `valid`, so the status
  * column here is the lever that takes a suspect gateway out of service. The
@@ -53,7 +53,7 @@ export function Devices() {
     <>
       <h1 className="page-title">Devices</h1>
       <p className="page-sub">
-        knowyourEV gateways. The app refuses to talk to any gateway not in service.
+        KnowyourEV gateways. The app refuses to talk to any gateway not in service.
       </p>
 
       {error ? (

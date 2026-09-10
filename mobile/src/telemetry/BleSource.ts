@@ -1,5 +1,5 @@
 /**
- * BLE transport to the knowyourEV ESP32 gateway.
+ * BLE transport to the KnowyourEV ESP32 gateway.
  *
  * Deliberately the same interface as MockSource: swapping USE_MOCK must not
  * touch a single screen file. The gateway hands us already-normalized frames —
@@ -7,7 +7,7 @@
  *
  * Security posture (Build Plan Phase 4): this client refuses to read from or
  * relay commands to any peripheral that fails device authentication. An
- * unverified peripheral is never treated as a knowyourEV device.
+ * unverified peripheral is never treated as a KnowyourEV device.
  */
 import type { BatterySnapshot, TelemetrySource, WriteResult } from './types';
 
@@ -18,7 +18,7 @@ export const KYE_COMMAND_CHAR = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
 
 export class DeviceAuthenticationError extends Error {
   constructor(deviceId: string) {
-    super(`Peripheral ${deviceId} failed knowyourEV device authentication`);
+    super(`Peripheral ${deviceId} failed KnowyourEV device authentication`);
     this.name = 'DeviceAuthenticationError';
   }
 }

@@ -42,7 +42,7 @@ export function Shell() {
   return (
     <div className="shell">
       <header className="masthead">
-        <span className="wordmark">knowyourEV</span>
+        <span className="wordmark">KnowyourEV</span>
         <span className="masthead-sub">
           {/* An administrator belongs to no company; saying so beats a blank. */}
           {company ? company.name : 'Platform administration'}

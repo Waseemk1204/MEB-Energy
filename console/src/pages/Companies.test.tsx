@@ -253,7 +253,7 @@ describe('who can see this at all', () => {
 
 
 /**
- * Payment happens outside knowyourEV. Granting access here is an administrator
+ * Payment happens outside KnowyourEV. Granting access here is an administrator
  * recording that it did — and none of it was enforced before: a company could
  * be suspended, or its plan a year lapsed, and every one of its users carried
  * on working.
@@ -333,7 +333,7 @@ describe('a company’s access', () => {
 });
 
 /**
- * Two different things are called "devices" in this product: knowyourEV
+ * Two different things are called "devices" in this product: KnowyourEV
  * gateways, and the phones and browsers the owner account is signed in on.
  * Conflating them is the mistake this whole section exists to prevent.
  */

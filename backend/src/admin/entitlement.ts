@@ -45,7 +45,7 @@ export interface Entitlement {
   expiresAt?: number;
   seatLimit?: number;
   /**
-   * knowyourEV gateways the company may register; null means no limit.
+   * KnowyourEV gateways the company may register; null means no limit.
    *
    * Reported exactly as stored. This used to substitute DEFAULT_DEVICE_LIMIT
    * for a null, while `deviceUsage` — the reader enforcement actually uses —

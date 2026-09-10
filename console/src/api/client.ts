@@ -1,5 +1,5 @@
 /**
- * Typed client for the knowyourEV backend.
+ * Typed client for the KnowyourEV backend.
  *
  * Deliberately a sibling of the app's client rather than a shared package: the
  * two run on different platforms with different storage and different failure

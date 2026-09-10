@@ -8,7 +8,7 @@ import type { Store } from '../db/client.js';
  * a shift. Capping concurrent devices is what stops one paid account becoming
  * a floating licence for a depot.
  *
- * Distinct from the gateway `device_limit`, which counts knowyourEV hardware.
+ * Distinct from the gateway `device_limit`, which counts KnowyourEV hardware.
  * Two different things called "device" is how the two get confused, so they
  * are named apart everywhere.
  *
@@ -132,7 +132,7 @@ export function labelFor(userAgent: string | undefined): string | null {
     : /Chrome\//i.test(userAgent) ? 'Chrome'
     : /Firefox\//i.test(userAgent) ? 'Firefox'
     : /Safari\//i.test(userAgent) ? 'Safari'
-    : /Expo|okhttp|CFNetwork/i.test(userAgent) ? 'knowyourEV app'
+    : /Expo|okhttp|CFNetwork/i.test(userAgent) ? 'KnowyourEV app'
     : null;
 
   if (browser && platform) return `${browser} on ${platform}`;

@@ -1,4 +1,4 @@
-# knowyourEV
+# KnowyourEV
 
 BMS diagnostics, configuration and fleet management for EV battery packs.
 
@@ -63,7 +63,7 @@ own address, so a phone on the same network finds it without editing anything.
 
 ## Access and limits
 
-Payment happens outside knowyourEV. An administrator switches a company on for a
+Payment happens outside KnowyourEV. An administrator switches a company on for a
 year from that moment, sets how many users it may have, and can change either
 later without restarting the term. Sign-in checks the company as well as the
 account, at login *and* at every token refresh — and answers **403, not 401**,
@@ -75,7 +75,7 @@ same thing twice:
 
 | | what it counts | default |
 |---|---|---|
-| **Gateways** (`device_limit`) | knowyourEV hardware the company may register | set per plan |
+| **Gateways** (`device_limit`) | KnowyourEV hardware the company may register | set per plan |
 | **Sign-ins** (`session_device_limit`) | phones and browsers the **owner account** may be signed in on at once | 2 |
 
 A third sign-in on the owner account signs out the device used longest ago and

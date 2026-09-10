@@ -1,4 +1,4 @@
-# knowyourEV — mobile app
+# KnowyourEV — mobile app
 
 Phase 1 field-user app: connect to a battery over BLE, read normalized telemetry,
 and change BMS parameters through a governed safe-write flow.
@@ -186,7 +186,7 @@ walker for this — a silent false-negative trap otherwise.
 wiring order, but the firmware telemetry contract does not exist yet. When it
 does: connect, authenticate against the gateway's secure element, and **stop the
 flow on auth failure before any read** — the app must never treat an unverified
-peripheral as a knowyourEV device.
+peripheral as a KnowyourEV device.
 
 **The auth token is a placeholder.** `signIn` mints `local-<timestamp>` because
 there is no auth service. The storage shape, expiry check and fail-closed paths

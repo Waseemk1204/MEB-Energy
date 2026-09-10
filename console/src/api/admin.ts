@@ -192,7 +192,7 @@ export interface Entitlement {
   ok: boolean;
   expiresAt?: number;
   seatLimit?: number;
-  /** knowyourEV gateways the company may register; null means no limit. */
+  /** KnowyourEV gateways the company may register; null means no limit. */
   deviceLimit?: number | null;
   /** Phones and browsers the owner account may be signed in on at once. */
   sessionDeviceLimit?: number;
@@ -212,7 +212,7 @@ export const DEFAULT_DEVICE_LIMIT = 2;
 /**
  * Signed-in phones and browsers for the company-owner account, which is a
  * different number from DEFAULT_DEVICE_LIMIT above even though both start at
- * two. That one counts knowyourEV gateways.
+ * two. That one counts KnowyourEV gateways.
  */
 export const DEFAULT_SESSION_DEVICES = 2;
 

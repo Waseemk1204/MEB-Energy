@@ -115,7 +115,7 @@ export default function SupportSession() {
             {state.kind === 'unchecked'
               ? 'Checking for an open support session…'
               : state.kind === 'unreachable'
-                ? 'Could not reach knowyourEV to check for a support session. This does not mean there is none.'
+                ? 'Could not reach KnowyourEV to check for a support session. This does not mean there is none.'
                 : batteryId
                   ? 'No administrator has an open session with this battery.'
                   : 'Connect to a battery to see whether a support session is open.'}

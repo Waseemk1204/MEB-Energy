@@ -53,7 +53,7 @@ export default function Batteries() {
     <View style={{ flex: 1, backgroundColor: p.panelBase }}>
       <LeatherPanel tone="hero" radius={0} style={{ paddingTop: topInset + 8, paddingBottom: 20 }}>
         <View style={styles.head}>
-          <Text style={[T.wordmark, { color: p.leatherInk, fontSize: 25 }]}>knowyourEV</Text>
+          <Text style={[T.wordmark, { color: p.leatherInk, fontSize: 25 }]}>KnowyourEV</Text>
           <Text style={[T.screenSub, { color: p.leatherInkSoft, marginTop: 6 }]}>
             {company} · {batteries.length} {batteries.length === 1 ? 'battery' : 'batteries'}
           </Text>

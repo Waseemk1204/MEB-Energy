@@ -1,7 +1,7 @@
-# knowyourEV — Mobile UI Plan
+# KnowyourEV — Mobile UI Plan
 ### "Bentley Cluster" design language · React Native (Expo) · all 13 screens
 
-**Source of truth:** knowyourEV PRD v1.0 (§7.4 Mobile App, §7.5 Safe Write, §7.16 Location Readiness, §7.17 Visual Design Language, §10.1 Screens) and knowyourEV App Build Plan v1.0 (Phase 1 — User MVP).
+**Source of truth:** KnowyourEV PRD v1.0 (§7.4 Mobile App, §7.5 Safe Write, §7.16 Location Readiness, §7.17 Visual Design Language, §10.1 Screens) and KnowyourEV App Build Plan v1.0 (Phase 1 — User MVP).
 
 **Reference image:** the tan stitched-leather instrument cluster mock. Everything below is measured against it.
 
@@ -22,7 +22,7 @@ Read literally, the mock encodes eight decisions. The rest of this plan is those
 | 7 | Tab bar: active tab is a filled dark-brown pill, inactive are bare icons | **Single active pill**, uppercase 10px labels, 4 tabs max. |
 | 8 | Type is one grotesk at two weights; no serif, no icon noise | **Two families total.** Numerals tabular, labels letterspaced uppercase. |
 
-**The one deviation you must make.** The mock shows a 400 V Tesla pack (`392.4 V`, axis `0–450`). knowyourEV Phase 1 targets a **JBD SP24S004, 24S LiFePO4** pack: nominal 76.8 V, real operating band ≈ 60–88 V, 200 A continuous. Keep the *composition* of the mock; drive the *axis* from `BMSParameterDefinition.min/max`. Hardcoding `0–450` makes the needle sit dead at the far left for every real pack — the gauge would be decorative and, per PRD §7.17's safety note, that is exactly the failure mode to avoid.
+**The one deviation you must make.** The mock shows a 400 V Tesla pack (`392.4 V`, axis `0–450`). KnowyourEV Phase 1 targets a **JBD SP24S004, 24S LiFePO4** pack: nominal 76.8 V, real operating band ≈ 60–88 V, 200 A continuous. Keep the *composition* of the mock; drive the *axis* from `BMSParameterDefinition.min/max`. Hardcoding `0–450` makes the needle sit dead at the far left for every real pack — the gauge would be decorative and, per PRD §7.17's safety note, that is exactly the failure mode to avoid.
 
 ---
 
@@ -239,7 +239,7 @@ The mock, verbatim:
    - `PassiveChangeBanner` when an admin write landed this session.
 4. **TabBar**: `DASH · CELLS · HISTORY · SETTINGS`.
 
-> The mock's `DRIVE / CHARGING` tabs are a Tesla artefact — knowyourEV has no drive data. Keep the mock's tab *styling*, use knowyourEV's information architecture. Protection, BMS Info, Device and Help are reached from Dashboard rows, not from the tab bar (4-tab maximum keeps the pill legible).
+> The mock's `DRIVE / CHARGING` tabs are a Tesla artefact — KnowyourEV has no drive data. Keep the mock's tab *styling*, use KnowyourEV's information architecture. Protection, BMS Info, Device and Help are reached from Dashboard rows, not from the tab bar (4-tab maximum keeps the pill legible).
 
 ### 4.4 Cells
 *Thin leather header → cream body.* 3-column grid of stitched cards, one per cell, `CELL 07 / 3.412`. Min and max cells get a 1.5px `accent` inset ring and a `MIN`/`MAX` caption. A pinned summary bar shows `Δ 38 mV` against the 15 mV balance-delta seed — over threshold turns it `status.warn`. Optional bar-chart toggle. No needles: per PRD §7.17 detail data stays tabular.

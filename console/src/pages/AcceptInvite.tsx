@@ -43,7 +43,7 @@ export function AcceptInvite() {
     return (
       <div className="login">
         <div className="login-card">
-          <span className="wordmark">knowyourEV</span>
+          <span className="wordmark">KnowyourEV</span>
           <p className="login-sub">Invitation</p>
           <p role="alert" className="notice notice-error">
             This link is missing its invitation code. Ask whoever invited you to send it again.
@@ -56,7 +56,7 @@ export function AcceptInvite() {
   return (
     <div className="login">
       <form className="login-card" onSubmit={submit}>
-        <span className="wordmark">knowyourEV</span>
+        <span className="wordmark">KnowyourEV</span>
         <p className="login-sub">Choose your password</p>
 
         <div className="field">

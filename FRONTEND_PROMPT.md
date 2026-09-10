@@ -1,10 +1,10 @@
-# knowyourEV — Complete Frontend Build Prompt
+# KnowyourEV — Complete Frontend Build Prompt
 
 > Paste everything between the `═══` rules into your coding agent. It is self-contained: it does not require the PRD, the build plan, or the reference image to be attached, because every constraint from them is restated inline. Attach the reference mock anyway if your tool accepts images — it helps.
 
 ═══════════════════════════════════════════════════════════════════════════
 
-You are building the **knowyourEV** mobile app frontend: a BMS diagnostics, configuration and fleet-management client for EV battery packs. Build it completely, in one pass, with live-updating instrumentation. Do not stub screens, do not leave TODOs, do not ask me to fill anything in.
+You are building the **KnowyourEV** mobile app frontend: a BMS diagnostics, configuration and fleet-management client for EV battery packs. Build it completely, in one pass, with live-updating instrumentation. Do not stub screens, do not leave TODOs, do not ask me to fill anything in.
 
 ## 1. Stack — use exactly this
 

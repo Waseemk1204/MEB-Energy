@@ -21,7 +21,7 @@ export function Login() {
   return (
     <div className="login">
       <form className="login-card" onSubmit={onSubmit}>
-        <span className="wordmark">knowyourEV</span>
+        <span className="wordmark">KnowyourEV</span>
         <p className="login-sub">Administration console</p>
 
         <div className="field">
@@ -61,7 +61,7 @@ export function Login() {
         </button>
 
         <p className="login-foot">
-          Field work happens in the knowyourEV app. This console is for administrators and
+          Field work happens in the KnowyourEV app. This console is for administrators and
           company owners.
         </p>
       </form>

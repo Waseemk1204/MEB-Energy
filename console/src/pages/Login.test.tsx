@@ -111,7 +111,7 @@ describe('what a failed sign-in says', () => {
       throw new TypeError('Failed to fetch');
     });
     await signIn();
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Cannot reach knowyourEV/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Cannot reach KnowyourEV/);
   });
 
   it('does not surface the server’s own wording', async () => {
@@ -139,7 +139,7 @@ describe('a technician signing in', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/administrators and company owners/);
-    expect(alert).toHaveTextContent(/knowyourEV app/);
+    expect(alert).toHaveTextContent(/KnowyourEV app/);
   });
 
   it('is not let into the console', async () => {

@@ -82,7 +82,7 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
   await app.listen({ port, host: '0.0.0.0' });
-  console.log(`knowyourEV backend listening on :${port} (db ${dbFile}, ${seeded} parameters)`);
+  console.log(`KnowyourEV backend listening on :${port} (db ${dbFile}, ${seeded} parameters)`);
 }
 
 main().catch((error) => {

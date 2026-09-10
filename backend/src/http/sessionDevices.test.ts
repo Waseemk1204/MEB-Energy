@@ -201,7 +201,7 @@ describe('an administrator changing the cap', () => {
   });
 
   /**
-   * The gateway limit counts knowyourEV hardware and this one counts phones.
+   * The gateway limit counts KnowyourEV hardware and this one counts phones.
    * Two different things called "device" is how they get conflated, so the
    * route must keep them apart.
    */

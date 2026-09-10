@@ -60,7 +60,7 @@ function messageFor(error: unknown): string {
     if (error.status === 429) return 'Too many attempts. Wait a minute and try again.';
     if (error.status === 401 || error.status === 400) return 'Email or password is incorrect.';
   }
-  return 'Cannot reach knowyourEV. Check your connection and try again.';
+  return 'Cannot reach KnowyourEV. Check your connection and try again.';
 }
 
 export const API_BASE_URL =
@@ -141,7 +141,7 @@ export function AuthProvider({
           // Their credentials are fine; this is not their tool. Said plainly,
           // because a technician staring at an empty console learns nothing.
           setError(
-            'This console is for administrators and company owners. Use the knowyourEV app for field work.'
+            'This console is for administrators and company owners. Use the KnowyourEV app for field work.'
           );
           setSigningIn(false);
           return false;
@@ -184,7 +184,7 @@ export function AuthProvider({
         // been spent. But the console is not their tool, and dropping a
         // technician into it would be worse than telling them so.
         if (!mayUseConsole(result.user.role)) {
-          return 'Your password is set. Sign in with the knowyourEV app — this console is for administrators and company owners.';
+          return 'Your password is set. Sign in with the KnowyourEV app — this console is for administrators and company owners.';
         }
 
         tokens.current = { accessToken: result.accessToken, refreshToken: result.refreshToken };
@@ -205,7 +205,7 @@ export function AuthProvider({
         // password that is too short from a link that no longer works, and
         // says nothing about why the link failed.
         if (caught instanceof ApiError) return caught.message;
-        return 'Cannot reach knowyourEV. Check your connection and try again.';
+        return 'Cannot reach KnowyourEV. Check your connection and try again.';
       }
     },
     [api]

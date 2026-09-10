@@ -147,7 +147,7 @@ describe('correcting a mistake', () => {
  */
 describe('the step list', () => {
   const steps = [
-    { label: 'Connect knowyourEV device', done: true, active: false },
+    { label: 'Connect KnowyourEV device', done: true, active: false },
     { label: 'Authenticate device', done: false, active: true },
     { label: 'Detect BMS', done: false, active: false },
   ];
