@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { space } from '../src/theme/tokens';
@@ -13,13 +12,15 @@ import { StepList } from '../src/ui/StepList';
 import { useTelemetryStore } from '../src/store/useTelemetryStore';
 import { CONNECT_STEPS, stepComplete, useSessionStore } from '../src/store/useSessionStore';
 import { describeReading, useFleetStore } from '../src/store/useFleetStore';
+import { useBottomInset, useTopInset } from '../src/ui/safeArea';
 
 
 
 export default function Batteries() {
   const { p } = useTheme();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const topInset = useTopInset();
+  const bottomInset = useBottomInset();
   const snapshot = useTelemetryStore((s) => s.snapshot);
 
   const company = useSessionStore((s) => s.company);
@@ -50,7 +51,7 @@ export default function Batteries() {
 
   return (
     <View style={{ flex: 1, backgroundColor: p.panelBase }}>
-      <LeatherPanel tone="hero" radius={0} style={{ paddingTop: insets.top + 8, paddingBottom: 20 }}>
+      <LeatherPanel tone="hero" radius={0} style={{ paddingTop: topInset + 8, paddingBottom: 20 }}>
         <View style={styles.head}>
           <Text style={[T.wordmark, { color: p.leatherInk, fontSize: 25 }]}>knowyourEV</Text>
           <Text style={[T.screenSub, { color: p.leatherInkSoft, marginTop: 6 }]}>
@@ -60,7 +61,7 @@ export default function Batteries() {
       </LeatherPanel>
 
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: space.gutter, paddingBottom: insets.bottom + 28 }}
+        contentContainerStyle={{ paddingHorizontal: space.gutter, paddingBottom: bottomInset + 28 }}
         showsVerticalScrollIndicator={false}
       >
         <SectionLabel>Your batteries</SectionLabel>

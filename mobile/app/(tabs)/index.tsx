@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BatteryMedium, MapPin, Zap } from 'lucide-react-native';
 
 import { useTheme } from '../../src/theme/ThemeProvider';
@@ -25,6 +24,7 @@ import { useSessionStore } from '../../src/store/useSessionStore';
 import { describeSupport, useSupportStore } from '../../src/store/useSupportStore';
 import { useTelemetryStore } from '../../src/store/useTelemetryStore';
 import { axes, profile } from '../../src/bms/capabilityProfile';
+import { useTopInset } from '../../src/ui/safeArea';
 
 const BATTERY_ID = 'BAT-00042';
 const COMPANY = 'Aurora Fleet';
@@ -32,7 +32,9 @@ const COMPANY = 'Aurora Fleet';
 export default function Dashboard() {
   const { p } = useTheme();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  // Only the top edge: the tab bar takes layout space, so the bottom is already
+  // clear without this screen padding for it.
+  const topInset = useTopInset();
   const snapshot = useTelemetryStore((s) => s.snapshot);
   const batteryId = useSessionStore((s) => s.connectedBatteryId);
   const writeCount = useActivityStore((s) => s.entries.length);
@@ -63,7 +65,7 @@ export default function Dashboard() {
       showsVerticalScrollIndicator={false}
     >
       {/* ---- leather hero: bleeds to the top edge, holds the one hero gauge ---- */}
-      <LeatherPanel tone="hero" radius={0} style={{ paddingTop: insets.top + 8, paddingBottom: 28 }}>
+      <LeatherPanel tone="hero" radius={0} style={{ paddingTop: topInset + 8, paddingBottom: 28 }}>
         <View style={styles.header}>
           <View style={{ flexShrink: 1 }}>
             <Text style={[T.screenTitle, { color: p.leatherInk }]}>{COMPANY}</Text>

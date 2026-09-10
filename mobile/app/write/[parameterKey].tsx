@@ -9,7 +9,6 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle, Minus, Plus, X } from 'lucide-react-native';
 
 import { useTheme } from '../../src/theme/ThemeProvider';
@@ -31,6 +30,7 @@ import {
   lockoutSecondsLeft,
   useSecurityStore,
 } from '../../src/store/useSecurityStore';
+import { useBottomInset, useTopInset } from '../../src/ui/safeArea';
 
 const OUTCOME_TITLE: Record<WriteOutcome, string> = {
   success: 'Written',
@@ -54,7 +54,8 @@ type Stage = 'idle' | 'pin' | 'writing' | 'reading' | 'auditing' | 'done' | 'set
 export default function WriteConfirmation() {
   const { p } = useTheme();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const topInset = useTopInset();
+  const bottomInset = useBottomInset();
   const { parameterKey } = useLocalSearchParams<{ parameterKey: string }>();
 
   // Deliberately the profile store, not the bundled file: where the server has
@@ -109,7 +110,7 @@ export default function WriteConfirmation() {
 
   if (!param) {
     return (
-      <View style={{ flex: 1, backgroundColor: p.panelBase, padding: 24, paddingTop: insets.top + 24 }}>
+      <View style={{ flex: 1, backgroundColor: p.panelBase, padding: 24, paddingTop: topInset + 24 }}>
         <Text style={[T.rowLabel, { color: p.inkStrong }]}>Unknown parameter.</Text>
       </View>
     );
@@ -205,12 +206,12 @@ export default function WriteConfirmation() {
   return (
     <View style={{ flex: 1, backgroundColor: p.panelBase }}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+        contentContainerStyle={{ paddingBottom: bottomInset + 24 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         {/* Leather is used for exactly one modal, to mark it as consequential. */}
-        <LeatherPanel tone="hero" radius={0} style={{ paddingTop: insets.top + 10 }}>
+        <LeatherPanel tone="hero" radius={0} style={{ paddingTop: topInset + 10 }}>
           <View style={[StyleSheet.absoluteFill, { margin: 9, borderWidth: 2, borderStyle: 'dashed', borderColor: stitchColor, borderRadius: 4, opacity: 0.9 }]} pointerEvents="none" />
           <View style={styles.head}>
             <View style={{ flexShrink: 1 }}>

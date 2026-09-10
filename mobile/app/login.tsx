@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { radii } from '../src/theme/tokens';
 import { type as T } from '../src/theme/type';
@@ -8,11 +7,13 @@ import { LeatherPanel } from '../src/ui/LeatherPanel';
 import { PrimaryButton } from '../src/ui/primitives';
 import { profile } from '../src/bms/capabilityProfile';
 import { useSessionStore } from '../src/store/useSessionStore';
+import { useBottomInset, useTopInset } from '../src/ui/safeArea';
 
 /** Full-bleed leather, no cream panel. The only other Fraunces screen is the battery list. */
 export default function Login() {
   const { p } = useTheme();
-  const insets = useSafeAreaInsets();
+  const topInset = useTopInset();
+  const bottomInset = useBottomInset();
   const signIn = useSessionStore((s) => s.signIn);
   const signingIn = useSessionStore((s) => s.signingIn);
   const error = useSessionStore((s) => s.error);
@@ -25,7 +26,7 @@ export default function Login() {
     <LeatherPanel tone="hero" radius={0} style={{ flex: 1 }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }}
+        style={{ flex: 1, paddingTop: topInset, paddingBottom: bottomInset + 24 }}
       >
         <View style={styles.brand}>
           <Text style={[T.wordmark, { color: p.leatherInk }]}>knowyourEV</Text>

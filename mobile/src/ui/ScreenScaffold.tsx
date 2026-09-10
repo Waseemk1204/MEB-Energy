@@ -1,12 +1,12 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { space } from '../theme/tokens';
 import { type as T } from '../theme/type';
 import { LeatherPanel } from './LeatherPanel';
+import { useBottomInset, useTopInset } from './safeArea';
 
 /**
  * Every screen that isn't the Dashboard: a thin pinned leather header over a
@@ -29,13 +29,14 @@ export function ScreenScaffold({
 }) {
   const { p } = useTheme();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const topInset = useTopInset();
+  const bottomInset = useBottomInset();
 
   const Body = scroll ? ScrollView : View;
 
   return (
     <View style={{ flex: 1, backgroundColor: p.panelBase }}>
-      <LeatherPanel tone="hero" radius={0} style={{ paddingTop: insets.top + 8, paddingBottom: 8 }}>
+      <LeatherPanel tone="hero" radius={0} style={{ paddingTop: topInset + 8, paddingBottom: 8 }}>
         <View style={styles.head}>
           <View style={{ flexShrink: 1 }}>
             {back && (
@@ -60,7 +61,7 @@ export function ScreenScaffold({
       <Body
         style={{ flex: 1 }}
         contentContainerStyle={
-          scroll ? { paddingHorizontal: space.gutter, paddingBottom: insets.bottom + 32 } : undefined
+          scroll ? { paddingHorizontal: space.gutter, paddingBottom: bottomInset + 32 } : undefined
         }
         showsVerticalScrollIndicator={false}
       >

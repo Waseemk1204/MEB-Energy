@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import {
   SpaceGrotesk_500Medium,
@@ -124,8 +124,11 @@ export default function RootLayout() {
 
   if (!loaded) return null;
 
+  // `initialMetrics` hands the provider the window's insets synchronously.
+  // Without it the provider renders no children at all until its first native
+  // measurement lands, so the app opens on a blank frame.
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <ThemeProvider>
         <Shell />
       </ThemeProvider>
