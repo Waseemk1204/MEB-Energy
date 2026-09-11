@@ -49,6 +49,8 @@ type SessionState = {
   authenticated: boolean;
   operator: string | null;
   company: string;
+  /** The tenant, for creating users and packs inside it. Null for an admin. */
+  companyId: string | null;
   /**
    * Which surface this person belongs on. Decides navigation only — every
    * route it unlocks is checked again on the server against the token, so
@@ -95,6 +97,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   authenticated: false,
   operator: null,
   company: NO_COMPANY,
+  companyId: null,
   // The least privileged role until a sign-in says otherwise.
   role: 'user',
   connectedBatteryId: null,
@@ -123,7 +126,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (stored) {
       setTokens(
         { accessToken: stored.token, refreshToken: stored.refreshToken },
-        { operator: stored.operator, company: stored.company, role: stored.role }
+        { operator: stored.operator, company: stored.company, companyId: stored.companyId, role: stored.role }
       );
     }
     set(
@@ -133,6 +136,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             authenticated: true,
             operator: stored.operator,
             company: stored.company,
+            companyId: stored.companyId,
             role: stored.role,
             // No link is restored: the BLE session died with the process.
             connectedBatteryId: null,
@@ -156,7 +160,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const operator = email.trim() || 'Field user';
       setTokens(
         { accessToken: 'offline', refreshToken: 'offline' },
-        { operator, company: get().company, role: 'user' }
+        { operator, company: get().company, companyId: null, role: 'user' }
       );
       set({ authenticated: true, operator, role: 'user', signingIn: false });
       void saveSession({
@@ -164,6 +168,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         refreshToken: 'offline',
         operator,
         company: get().company,
+        companyId: null,
         // The offline path invents a session; it gets the least it can.
         role: 'user',
         issuedAt: Date.now(),
@@ -175,17 +180,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const result = await login(api, email, password);
       const operator = result.user.displayName || result.user.email;
       const company = result.company?.name ?? get().company;
+      const companyId = result.company?.id ?? null;
       const role = result.user.role;
 
       setTokens(
         { accessToken: result.accessToken, refreshToken: result.refreshToken },
-        { operator, company, role }
+        { operator, company, companyId, role }
       );
       await saveSession({
         token: result.accessToken,
         refreshToken: result.refreshToken,
         operator,
         company,
+        companyId,
         role,
         issuedAt: Date.now(),
       });
@@ -195,6 +202,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         authenticated: true,
         operator,
         company,
+        companyId,
         role,
         signingIn: false,
         error: null,

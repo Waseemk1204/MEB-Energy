@@ -60,6 +60,9 @@ import {
   registerDevice,
   seatUsage,
   platformOverview,
+  reinstateBattery,
+  retireBattery,
+  updateBattery,
   visibleUser,
   setDeviceSecurityStatus,
   setUserStatus,
@@ -175,6 +178,20 @@ const permissionsBody = z
     write: z.boolean().optional(),
     location: z.boolean().optional(),
     health: z.boolean().optional(),
+  })
+  .refine((b) => Object.keys(b).length > 0, { message: 'nothing to change' });
+
+const batteryPatchBody = z
+  .object({
+    serial: z.string().min(1).max(64).optional(),
+    chemistry: z.string().min(1).max(32).optional(),
+    cellCount: z.number().int().min(1).max(512).optional(),
+    nominalVoltage: z.number().positive().nullable().optional(),
+    capacityAh: z.number().positive().nullable().optional(),
+    ratedCurrentA: z.number().positive().nullable().optional(),
+    bmsManufacturer: z.string().max(64).nullable().optional(),
+    bmsModel: z.string().max(64).nullable().optional(),
+    bmsFirmware: z.string().max(64).nullable().optional(),
   })
   .refine((b) => Object.keys(b).length > 0, { message: 'nothing to change' });
 
@@ -482,14 +499,22 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
    * truncated rather than leaving a client to read a partial fleet as the whole
    * one — the same reason the audit trail says when a page is full.
    */
-  app.get<{ Querystring: { limit?: string } }>('/batteries', async (request, reply) => {
+  app.get<{ Querystring: { limit?: string; includeRetired?: string } }>(
+    '/batteries',
+    async (request, reply) => {
     const principal = await principalOf(request);
     const limit = Math.min(
       Math.max(Number(request.query.limit ?? BATTERY_PAGE_DEFAULT), 1),
       BATTERY_PAGE_MAX
     );
 
-    const q = tenantQuery(principal, 'batteries', { orderBy: 'serial ASC' });
+    // A technician picking a pack to connect to should not be offered one
+    // that has been taken out of service. Management screens ask for them.
+    const includeRetired = request.query.includeRetired === '1';
+    const q = tenantQuery(principal, 'batteries', {
+      orderBy: 'serial ASC',
+      ...(includeRetired ? {} : { where: "status = 'active'", params: [] }),
+    });
     // One more than asked for, purely to detect truncation without a COUNT.
     const rows = store.all<{ id: string }>(`${q.sql} LIMIT ?`, ...q.params, limit + 1);
     const truncated = rows.length > limit;
@@ -504,7 +529,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       batteries: batteries.map((b) => ({ ...b, lastReading: readings.get(b.id) ?? null })),
       truncated,
     });
-  });
+  }
+  );
 
   app.get<{ Params: { id: string } }>('/batteries/:id', async (request, reply) => {
     const principal = await principalOf(request);
@@ -976,6 +1002,29 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const body = parse(batteryBody, request.body);
     const id = registerBattery(store, principal, body);
     return reply.status(201).send({ batteryId: id });
+  });
+
+  /** Edit a pack's details. Scoped: a company edits its own, an admin any. */
+  app.patch<{ Params: { id: string } }>('/batteries/:id', async (request, reply) => {
+    const principal = await principalOf(request);
+    updateBattery(store, principal, request.params.id, parse(batteryPatchBody, request.body));
+    return reply.status(204).send();
+  });
+
+  /**
+   * Take a pack out of service. Not a delete: the audit ledger references it.
+   * It leaves the technician's list and stays in the record.
+   */
+  app.delete<{ Params: { id: string } }>('/batteries/:id', async (request, reply) => {
+    const principal = await principalOf(request);
+    retireBattery(store, principal, request.params.id);
+    return reply.status(204).send();
+  });
+
+  app.post<{ Params: { id: string } }>('/batteries/:id/reinstate', async (request, reply) => {
+    const principal = await principalOf(request);
+    reinstateBattery(store, principal, request.params.id);
+    return reply.status(204).send();
   });
 
   app.get<{ Params: { id: string } }>('/companies/:id/batteries', async (request, reply) => {

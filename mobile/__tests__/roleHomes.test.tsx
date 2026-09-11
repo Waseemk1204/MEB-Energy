@@ -13,15 +13,15 @@ jest.mock('../src/api/platform', () => ({
 jest.mock('../src/api/session', () => ({ api: {}, setTokens: jest.fn(), onSessionExpired: jest.fn() }));
 
 import AdminHome from '../app/admin';
-import CompanyHome from '../app/company';
 import { ThemeProvider } from '../src/theme/ThemeProvider';
 import { useSessionStore } from '../src/store/useSessionStore';
 
 /**
- * The two screens a sign-in can now land on, besides the technician's.
+ * The administrator's landing screen. The company owner's is covered in
+ * companySurface.test.tsx, which owns that whole surface.
  *
- * These assert what the screens *say*, not what they permit: every figure here
- * comes from the server, and every route they offer is checked there again.
+ * These assert what the screen *says*, not what it permits: every figure here
+ * comes from the server, and every route it offers is checked there again.
  */
 
 const wrap = (node: React.ReactNode) => render(<ThemeProvider>{node}</ThemeProvider>);
@@ -92,30 +92,5 @@ describe('the administrator’s overview', () => {
     const q = await wrap(<AdminHome />);
     await waitFor(() => expect(q.getByText('Network request failed')).toBeTruthy());
     expect(q.queryByText('0')).toBeNull();
-  });
-});
-
-describe('the company owner’s home', () => {
-  beforeEach(() => {
-    useSessionStore.setState({ operator: 'Priya Raman', company: 'Aurora Fleet', role: 'company' });
-  });
-
-  it('is headed with their own company', async () => {
-    const q = await wrap(<CompanyHome />);
-    expect(q.getByText('Aurora Fleet')).toBeTruthy();
-  });
-
-  it('offers the fleet rather than dropping them into a pack', async () => {
-    const q = await wrap(<CompanyHome />);
-    expect(q.getByText('Batteries')).toBeTruthy();
-    expect(q.getByText('Gateways')).toBeTruthy();
-  });
-
-  /**
-   * Saying what is not here yet beats showing a control that does nothing.
-   */
-  it('is honest about what has not been built', async () => {
-    const q = await wrap(<CompanyHome />);
-    expect(q.getByText('Coming next')).toBeTruthy();
   });
 });

@@ -112,6 +112,11 @@ CREATE TABLE IF NOT EXISTS batteries (
   -- Reserved for GPS-capable hardware (PRD §7.16); null until it exists, so
   -- adding location later needs no migration.
   latitude REAL, longitude REAL, location_at INTEGER,
+  -- Retired, never deleted. The audit ledger references packs by id, and a
+  -- ledger entry pointing at a row that no longer exists is a ledger with a
+  -- hole in it. A retired pack drops out of the technician's list and stays
+  -- in the record.
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','retired')),
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS batteries_company_idx ON batteries(company_id);
@@ -320,6 +325,7 @@ export function createStore(file = ':memory:'): Store {
     addColumnIfMissing(db, 'users', 'can_write', 'INTEGER NOT NULL DEFAULT 0');
     addColumnIfMissing(db, 'users', 'can_location', 'INTEGER NOT NULL DEFAULT 1');
     addColumnIfMissing(db, 'users', 'can_health', 'INTEGER NOT NULL DEFAULT 1');
+    addColumnIfMissing(db, 'batteries', 'status', "TEXT NOT NULL DEFAULT 'active'");
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

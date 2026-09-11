@@ -172,3 +172,82 @@ export const ENTITLEMENT_LABEL: Record<EntitlementCode, string> = {
   subscription_expired: 'Expired',
   subscription_cancelled: 'Cancelled',
 };
+
+/* ---------------------------------------------------- a company's own fleet */
+
+export interface FleetPack {
+  id: string;
+  serial: string;
+  chemistry: string;
+  cell_count: number;
+  bms_model: string | null;
+  status: 'active' | 'retired';
+  lastReading: { soc: number; recorded_at: number } | null;
+}
+
+export interface NewPack {
+  companyId: string;
+  serial: string;
+  chemistry: string;
+  cellCount: number;
+  bmsManufacturer?: string;
+  bmsModel?: string;
+}
+
+export interface PackPatch {
+  serial?: string;
+  chemistry?: string;
+  cellCount?: number;
+  bmsModel?: string | null;
+  bmsFirmware?: string | null;
+}
+
+/** Every pack including retired ones — this is the management view. */
+export async function listFleet(api: ApiClient): Promise<FleetPack[]> {
+  return (await api.get<{ batteries: FleetPack[] }>('/batteries?includeRetired=1')).batteries;
+}
+
+export async function addPack(api: ApiClient, input: NewPack): Promise<{ batteryId: string }> {
+  return api.authedPost('/batteries', input);
+}
+
+export async function editPack(api: ApiClient, id: string, patch: PackPatch): Promise<void> {
+  await api.authedPatch(`/batteries/${id}`, patch);
+}
+
+/** Out of service, not deleted: the audit ledger still references it. */
+export async function retirePack(api: ApiClient, id: string): Promise<void> {
+  await api.authedDelete(`/batteries/${id}`);
+}
+
+export async function reinstatePack(api: ApiClient, id: string): Promise<void> {
+  await api.authedPost(`/batteries/${id}/reinstate`, {});
+}
+
+/* ----------------------------------------------------- a company's people */
+
+export interface NewPerson {
+  companyId: string;
+  email: string;
+  displayName: string;
+  permissions?: Partial<Permissions>;
+}
+
+/**
+ * Create somebody by invitation: they set their own first password and nobody
+ * else ever sees it. The link comes back for the owner to hand over.
+ */
+export async function invitePerson(
+  api: ApiClient,
+  input: NewPerson
+): Promise<{ id: string; invitation?: { token: string; expiresAt: number } }> {
+  return api.authedPost('/users', { ...input, role: 'user' });
+}
+
+/** Gone for good, or suspended if they have history the ledger still names. */
+export async function removePerson(
+  api: ApiClient,
+  userId: string
+): Promise<{ removed: boolean; reason?: string }> {
+  return api.authedDelete(`/users/${userId}`);
+}

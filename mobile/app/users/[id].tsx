@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { radii, space } from '../../src/theme/tokens';
@@ -13,6 +13,7 @@ import {
   PERMISSION_LABEL,
   listUsers,
   permissionsOf,
+  removePerson,
   setPermissions,
   setUserStatus,
   type ManagedUser,
@@ -38,6 +39,7 @@ const ORDER: (keyof Permissions)[] = ['read', 'write', 'location', 'health'];
 export default function UserDetail() {
   const { p } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const myUserId = useSessionStore((s) => s.operator);
 
   const [user, setUser] = useState<ManagedUser | null>(null);
@@ -103,6 +105,42 @@ export default function UserDetail() {
   };
 
   const isSelf = user !== null && (user.display_name === myUserId || user.email === myUserId);
+
+  /**
+   * Removing asks first and names the person. If they have ever changed a
+   * parameter the server suspends them instead of deleting: the audit ledger
+   * names them, and a ledger entry pointing at nobody is a ledger with a hole
+   * in it. The result says which happened.
+   */
+  const onRemove = () => {
+    if (!user) return;
+    const who = user.display_name || user.email;
+    Alert.alert(
+      `Remove ${who}?`,
+      'They are signed out everywhere at once and cannot sign in again. If they have made changes to a pack, the account is kept as a record and suspended instead.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            void removePerson(api, user.id)
+              .then((result) => {
+                if (result.removed) {
+                  router.back();
+                } else {
+                  setUser({ ...user, status: 'suspended' });
+                  setError(`${who} has changed packs before, so the account was suspended and kept as a record.`);
+                }
+              })
+              .catch((caught: unknown) =>
+                setError(caught instanceof Error ? caught.message : 'Could not remove them')
+              );
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <ScreenScaffold
@@ -171,6 +209,21 @@ export default function UserDetail() {
 
           <SectionLabel>Account</SectionLabel>
           <RowGroup>
+            {!isSelf ? (
+              <Pressable
+                onPress={onRemove}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${user.display_name || user.email}`}
+                style={({ pressed }) => [styles.row, pressed && { opacity: 0.6 }]}
+              >
+                <View style={{ flexShrink: 1 }}>
+                  <Text style={[T.rowLabel, { color: p.critical }]}>Remove from company</Text>
+                  <Text style={[T.caption, { color: p.inkFaint, marginTop: 1 }]}>
+                    For a guest whose job is done. Asks first.
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
             <View style={styles.row}>
               <View style={{ flexShrink: 1 }}>
                 <Text style={[T.rowLabel, { color: p.inkStrong }]}>Active</Text>

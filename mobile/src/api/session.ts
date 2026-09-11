@@ -12,7 +12,7 @@ import { type SessionRole, saveSession } from '../store/sessionStorage';
  */
 
 let tokens: Tokens | null = null;
-let identity: { operator: string; company: string; role: SessionRole } | null = null;
+let identity: { operator: string; company: string; companyId: string | null; role: SessionRole } | null = null;
 let onExpired: (() => void) | null = null;
 
 /** Called by the session store once, at startup. */
@@ -22,7 +22,7 @@ export function onSessionExpired(handler: () => void): void {
 
 export function setTokens(
   next: Tokens | null,
-  who?: { operator: string; company: string; role: SessionRole }
+  who?: { operator: string; company: string; companyId: string | null; role: SessionRole }
 ): void {
   tokens = next;
   if (who) identity = who;
@@ -46,6 +46,7 @@ export const api = new ApiClient({
         refreshToken: next.refreshToken,
         operator: identity.operator,
         company: identity.company,
+        companyId: identity.companyId,
         role: identity.role,
         issuedAt: Date.now(),
       });

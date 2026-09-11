@@ -654,5 +654,53 @@
     "file": "src/ui/SideMenu.tsx",
     "from": "accessibilityViewIsModal testID=\"side-menu\"",
     "to": "testID=\"side-menu\""
+  },
+  {
+    "name": "new people get write by default",
+    "why": "Granting write should be a decision somebody made.",
+    "package": "mobile",
+    "file": "app/company/people.tsx",
+    "from": "const DEFAULTS: Permissions = { read: true, write: false, location: true, health: true };",
+    "to": "const DEFAULTS: Permissions = { read: true, write: true, location: true, health: true };"
+  },
+  {
+    "name": "chosen permissions are ignored on invite",
+    "why": "The switches on the form would be decorative.",
+    "package": "mobile",
+    "file": "app/company/people.tsx",
+    "from": "        permissions: perms,",
+    "to": "        permissions: DEFAULTS,"
+  },
+  {
+    "name": "the owner is listed among their own people",
+    "why": "The owner is not 'their people'.",
+    "package": "mobile",
+    "file": "app/company/people.tsx",
+    "from": "        setPeople(rows.filter((u) => u.role === 'user'));",
+    "to": "        setPeople(rows);"
+  },
+  {
+    "name": "a retired pack shows a stale charge",
+    "why": "A retired pack's last reading is history, not a state.",
+    "package": "mobile",
+    "file": "app/company/fleet.tsx",
+    "from": "        {pack.status === 'retired' ? null : soc ? (",
+    "to": "        {soc ? ("
+  },
+  {
+    "name": "a retired pack deletes rather than retires",
+    "why": "The audit ledger references packs by id.",
+    "package": "backend",
+    "file": "src/admin/service.ts",
+    "from": "    store.run(\"UPDATE batteries SET status = 'retired' WHERE id = ?\", batteryId);",
+    "to": "    store.run(\"DELETE FROM batteries WHERE id = ?\", batteryId);"
+  },
+  {
+    "name": "retired packs still offered to technicians",
+    "why": "A technician picking a pack should not be offered one out of service.",
+    "package": "backend",
+    "file": "src/server.ts",
+    "from": "      ...(includeRetired ? {} : { where: \"status = 'active'\", params: [] }),",
+    "to": ""
   }
 ]

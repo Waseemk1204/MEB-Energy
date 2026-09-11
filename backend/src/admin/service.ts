@@ -562,6 +562,107 @@ export function listDevices(store: Store, principal: Principal) {
 }
 
 
+/* ------------------------------------------------------ editing batteries */
+
+export interface BatteryPatch {
+  serial?: string;
+  chemistry?: string;
+  cellCount?: number;
+  nominalVoltage?: number | null;
+  capacityAh?: number | null;
+  ratedCurrentA?: number | null;
+  bmsManufacturer?: string | null;
+  bmsModel?: string | null;
+  bmsFirmware?: string | null;
+}
+
+/**
+ * The battery this principal may edit, or not-found.
+ *
+ * Scoped the same way as everything else: a company sees its own packs, an
+ * administrator sees all of them, and "not yours" is the same answer as
+ * "not there" so the route cannot be used to discover serials.
+ */
+function ownedBattery(store: Store, principal: Principal, batteryId: string): { id: string; company_id: string } {
+  const row = store.get<{ id: string; company_id: string }>(
+    'SELECT id, company_id FROM batteries WHERE id = ?',
+    batteryId
+  );
+  if (!row || !canManageUsers(principal, row.company_id)) {
+    throw new AdminError('Battery not found', 'not_found');
+  }
+  return row;
+}
+
+const BATTERY_COLUMN: Record<keyof BatteryPatch, string> = {
+  serial: 'serial',
+  chemistry: 'chemistry',
+  cellCount: 'cell_count',
+  nominalVoltage: 'nominal_voltage',
+  capacityAh: 'capacity_ah',
+  ratedCurrentA: 'rated_current_a',
+  bmsManufacturer: 'bms_manufacturer',
+  bmsModel: 'bms_model',
+  bmsFirmware: 'bms_firmware',
+};
+
+export function updateBattery(
+  store: Store,
+  principal: Principal,
+  batteryId: string,
+  patch: BatteryPatch
+): void {
+  ownedBattery(store, principal, batteryId);
+
+  if (patch.serial !== undefined) {
+    const serial = patch.serial.trim();
+    const clash = store.get<{ id: string }>('SELECT id FROM batteries WHERE serial = ? AND id <> ?', serial, batteryId);
+    if (clash) throw new AdminError('That battery serial is already registered', 'email_taken');
+    patch = { ...patch, serial };
+  }
+
+  const sets: string[] = [];
+  const params: (string | number | null)[] = [];
+  for (const key of Object.keys(BATTERY_COLUMN) as (keyof BatteryPatch)[]) {
+    const value = patch[key];
+    if (value === undefined) continue;
+    sets.push(`${BATTERY_COLUMN[key]} = ?`);
+    params.push(value);
+  }
+  if (sets.length === 0) return;
+
+  store.run(`UPDATE batteries SET ${sets.join(', ')} WHERE id = ?`, ...params, batteryId);
+}
+
+/**
+ * Take a pack out of service.
+ *
+ * It leaves the technician's list and stays in the record, because the audit
+ * ledger references it by id and a ledger entry pointing at nothing is a
+ * ledger with a hole in it. Any live BLE session on it is ended.
+ */
+export function retireBattery(
+  store: Store,
+  principal: Principal,
+  batteryId: string,
+  now = Date.now()
+): void {
+  ownedBattery(store, principal, batteryId);
+  store.transaction(() => {
+    store.run("UPDATE batteries SET status = 'retired' WHERE id = ?", batteryId);
+    store.run(
+      'UPDATE ble_sessions SET ended_at = ? WHERE battery_id = ? AND ended_at IS NULL',
+      now,
+      batteryId
+    );
+  });
+}
+
+export function reinstateBattery(store: Store, principal: Principal, batteryId: string): void {
+  ownedBattery(store, principal, batteryId);
+  store.run("UPDATE batteries SET status = 'active' WHERE id = ?", batteryId);
+}
+
 /* ------------------------------------------------------- platform overview */
 
 export interface PlatformOverview {

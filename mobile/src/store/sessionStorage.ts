@@ -21,6 +21,11 @@ export interface PersistedSession {
   operator: string;
   company: string;
   /**
+   * The tenant this person belongs to, for creating things inside it. Null for
+   * a platform administrator, who belongs to none.
+   */
+  companyId: string | null;
+  /**
    * Which surface this person lands on. Persisted so a restored session goes
    * straight to the right place rather than flashing a technician's screen at
    * an administrator while the first request comes back.
@@ -119,6 +124,7 @@ export async function loadSession(): Promise<PersistedSession | null> {
       // one, and the header says so — putting a plausible company here means
       // every tenant that hit this path would see the same wrong name.
       company: parsed.company ?? '',
+      companyId: typeof parsed.companyId === 'string' ? parsed.companyId : null,
       // An unrecognised or missing role restores as the least privileged one.
       // A stored session from before this existed must not land somebody on an
       // administrator's screen.

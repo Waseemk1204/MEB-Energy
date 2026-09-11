@@ -42,6 +42,7 @@ const valid = (over: Partial<PersistedSession> = {}): PersistedSession => ({
   refreshToken: 'refresh-abc',
   operator: 'w.khan@aurorafleet.example',
   company: 'Aurora Fleet',
+  companyId: 'c-aurora',
   role: 'user',
   issuedAt: Date.now(),
   ...over,
@@ -167,6 +168,7 @@ describe('what is deliberately not persisted', () => {
     // this test in front of it rather than something that drifted in.
     expect(Object.keys(JSON.parse(raw)).sort()).toEqual([
       'company',
+      'companyId',
       'issuedAt',
       'operator',
       'refreshToken',
