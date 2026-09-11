@@ -614,5 +614,45 @@
     "file": "src/store/sessionStorage.ts",
     "from": "      role: isRole(parsed.role) ? parsed.role : 'user',",
     "to": "      role: parsed.role ?? 'user',"
+  },
+  {
+    "name": "a refused permission change is kept on screen",
+    "why": "A switch showing a value the server rejected lies about who can do what.",
+    "package": "mobile",
+    "file": "app/users/[id].tsx",
+    "from": "      setPerms(before);",
+    "to": "      // kept"
+  },
+  {
+    "name": "you can edit your own permissions",
+    "why": "Anyone who could grant themselves write would make the setting decorative.",
+    "package": "mobile",
+    "file": "app/users/[id].tsx",
+    "from": "                  disabled={isSelf || saving !== null}",
+    "to": "                  disabled={saving !== null}"
+  },
+  {
+    "name": "the menu stays open after navigating",
+    "why": "A panel left standing over the screen it opened is how a menu starts to feel stuck.",
+    "package": "mobile",
+    "file": "src/ui/SideMenu.tsx",
+    "from": "                onClose();\n                item.onPress();",
+    "to": "                item.onPress();"
+  },
+  {
+    "name": "the menu renders while closed",
+    "why": "An off-screen panel still takes taps.",
+    "package": "mobile",
+    "file": "src/ui/SideMenu.tsx",
+    "from": "  if (!open) return null;",
+    "to": "  if (false) return null;"
+  },
+  {
+    "name": "content behind the menu stays readable",
+    "why": "A screen reader would walk past the menu into the page under the scrim.",
+    "package": "mobile",
+    "file": "src/ui/SideMenu.tsx",
+    "from": "accessibilityViewIsModal testID=\"side-menu\"",
+    "to": "testID=\"side-menu\""
   }
 ]

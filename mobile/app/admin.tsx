@@ -1,12 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Building2, Cpu, Users, BatteryMedium } from 'lucide-react-native';
+import {
+  BatteryMedium,
+  Building2,
+  Cpu,
+  FileClock,
+  Menu,
+  Users,
+} from 'lucide-react-native';
 
 import { useTheme } from '../src/theme/ThemeProvider';
 import { radii, space } from '../src/theme/tokens';
 import { type as T } from '../src/theme/type';
 import { ScreenScaffold } from '../src/ui/ScreenScaffold';
+import { SideMenu } from '../src/ui/SideMenu';
 import { DataRow, RowGroup, SectionLabel } from '../src/ui/primitives';
 import { api } from '../src/api/session';
 import { platformOverview, type PlatformOverview } from '../src/api/platform';
@@ -31,6 +39,7 @@ export default function AdminHome() {
 
   const [overview, setOverview] = useState<PlatformOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     // Nothing is set before the first await, and nothing is set after the
@@ -60,7 +69,56 @@ export default function AdminHome() {
   }, []);
 
   return (
-    <ScreenScaffold title="Platform" sub={operator ?? 'Administrator'} back={false}>
+    <ScreenScaffold
+      title="Platform"
+      sub={operator ?? 'Administrator'}
+      back={false}
+      right={
+        <Pressable
+          onPress={() => setMenuOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Open menu"
+          hitSlop={10}
+          style={styles.menuButton}
+        >
+          <Menu size={20} color={p.leatherInk} strokeWidth={2.3} />
+        </Pressable>
+      }
+      overlay={
+        <SideMenu
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          title="Administration"
+          sub={operator ?? undefined}
+          items={[
+            {
+              label: 'Company management',
+              hint: 'Access, users and their packs',
+              icon: <Building2 size={18} color={p.accent} strokeWidth={2.2} />,
+              onPress: () => router.push('/companies'),
+            },
+            {
+              label: 'Batteries',
+              hint: 'Every pack on the platform',
+              icon: <BatteryMedium size={18} color={p.accent} strokeWidth={2.2} />,
+              onPress: () => router.push('/batteries'),
+            },
+            {
+              label: 'Gateways',
+              hint: 'Hardware and its security state',
+              icon: <Cpu size={18} color={p.accent} strokeWidth={2.2} />,
+              onPress: () => router.push('/device'),
+            },
+            {
+              label: 'Activity',
+              hint: 'The audit ledger',
+              icon: <FileClock size={18} color={p.accent} strokeWidth={2.2} />,
+              onPress: () => router.push('/activity'),
+            },
+          ]}
+        />
+      }
+    >
       {error ? (
         <View style={[styles.notice, { backgroundColor: p.panelAlt }]}>
           <Text style={[T.rowLabel, { color: p.critical }]}>{error}</Text>
@@ -121,13 +179,12 @@ export default function AdminHome() {
           <RowGroup>
             {/* No count here: the tile above already carries it, and the same
                 number in two places invites them to disagree. */}
-            <DataRow label="Companies" onPress={() => router.push('/batteries')} />
+            <DataRow label="Companies" onPress={() => router.push('/companies')} />
             <DataRow label="Open a pack" onPress={() => router.push('/batteries')} />
           </RowGroup>
 
           <Text style={[T.caption, { color: p.inkFaint, marginTop: 14 }]}>
-            Company management, users and the drill-down arrive next. Every
-            figure above is counted by the server, not by this screen.
+            Every figure above is counted by the server, not by this screen.
           </Text>
         </>
       )}
@@ -176,4 +233,5 @@ const styles = StyleSheet.create({
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: { flexGrow: 1, flexBasis: '46%', borderRadius: radii.card, padding: 14, gap: 2 },
   tileHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  menuButton: { minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
 });

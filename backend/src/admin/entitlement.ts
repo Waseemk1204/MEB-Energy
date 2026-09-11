@@ -199,6 +199,15 @@ export function adjustLimits(
     deviceLimit?: number;
     sessionDeviceLimit?: number;
     batteryLimit?: number | null;
+    /**
+     * Move the end of the term without restarting it.
+     *
+     * Granting runs a year from the moment access is switched on. This is for
+     * changing that afterwards — extending a company by a few months, or
+     * pulling a date in — without the year beginning again from today and
+     * quietly giving away whatever was left of the old one.
+     */
+    renewalDate?: number;
   }
 ): void {
   const sets: string[] = [];
@@ -215,6 +224,10 @@ export function adjustLimits(
   if (input.sessionDeviceLimit !== undefined) {
     sets.push('session_device_limit = ?');
     params.push(input.sessionDeviceLimit);
+  }
+  if (input.renewalDate !== undefined) {
+    sets.push('renewal_date = ?');
+    params.push(input.renewalDate);
   }
   if (input.batteryLimit !== undefined) {
     sets.push('battery_limit = ?');

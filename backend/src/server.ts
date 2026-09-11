@@ -156,6 +156,8 @@ const limitsBody = z
     deviceLimit: z.number().int().min(1).max(1_000).optional(),
     sessionDeviceLimit: z.number().int().min(1).max(100).optional(),
     batteryLimit: z.number().int().min(1).nullable().optional(),
+    // Moving the end of the term, not restarting it from today.
+    renewalDate: z.number().int().positive().optional(),
   })
   .refine((b) => Object.keys(b).length > 0, { message: 'nothing to change' });
 
@@ -903,9 +905,12 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     }
   });
 
-  app.get('/users', async (request, reply) => {
+  app.get<{ Querystring: { companyId?: string } }>('/users', async (request, reply) => {
     const principal = await principalOf(request);
-    return reply.send({ users: listUsers(store, principal) });
+    // The filter narrows what is already scoped; it cannot widen it.
+    return reply.send({
+      users: listUsers(store, principal, { companyId: request.query.companyId }),
+    });
   });
 
   app.patch<{ Params: { id: string } }>('/users/:id/status', async (request, reply) => {

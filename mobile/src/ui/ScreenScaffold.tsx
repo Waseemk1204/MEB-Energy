@@ -19,6 +19,7 @@ export function ScreenScaffold({
   right,
   children,
   scroll = true,
+  overlay,
 }: {
   title: string;
   sub: string;
@@ -26,6 +27,14 @@ export function ScreenScaffold({
   right?: React.ReactNode;
   children: React.ReactNode;
   scroll?: boolean;
+  /**
+   * Drawn over the whole screen, above the header and the scrolling body.
+   *
+   * For a menu or a sheet: putting one inside `children` would leave it
+   * trapped under the pinned header and clipped by the scroller, which is
+   * where a panel starts sliding in behind the thing that opened it.
+   */
+  overlay?: React.ReactNode;
 }) {
   const { p } = useTheme();
   const router = useRouter();
@@ -67,6 +76,8 @@ export function ScreenScaffold({
       >
         {children}
       </Body>
+
+      {overlay}
     </View>
   );
 }

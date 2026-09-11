@@ -232,10 +232,33 @@ interface UserRow {
   password_hash?: string;
 }
 
-export function listUsers(store: Store, principal: Principal): UserRow[] {
+/**
+ * The users this principal can see, optionally narrowed to one company.
+ *
+ * The filter is applied on top of the tenant scope, never instead of it: a
+ * company principal asking for another company's id gets their own rows and
+ * not an error, because the scope clause is still in the query. Only an
+ * administrator can use it to actually see somewhere else.
+ *
+ * Permissions come back with the row. The screen that lists people is the
+ * screen that shows what they may do, and a second round trip per user to find
+ * out would make a list of twenty into twenty-one requests.
+ */
+export function listUsers(
+  store: Store,
+  principal: Principal,
+  filter: { companyId?: string } = {}
+): UserRow[] {
+  const scoped = filter.companyId
+    ? { where: 'company_id = ?', params: [filter.companyId] }
+    : {};
+
   const q = tenantQuery(principal, 'users', {
-    columns: 'id, company_id, email, display_name, role, status',
+    columns:
+      'id, company_id, email, display_name, role, status, ' +
+      'can_read, can_write, can_location, can_health',
     orderBy: 'email ASC',
+    ...scoped,
   });
   return store.all<UserRow>(q.sql, ...q.params);
 }

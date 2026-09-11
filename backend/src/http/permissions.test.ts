@@ -196,3 +196,51 @@ describe('an administrator', () => {
     assert.equal(res.json().denialCode, 'session_required_for_admin_write');
   });
 });
+
+/**
+ * The user list is what the drill-down reads. It carries permissions so that
+ * showing twenty people does not become twenty-one requests, and the company
+ * filter narrows what is already scoped rather than replacing the scope.
+ */
+describe('listing users for the drill-down', () => {
+  const listAs = async (email: string, companyId?: string) => {
+    const token = (
+      await app.inject({ method: 'POST', url: '/auth/login', payload: { email, password: PASSWORD } })
+    ).json().accessToken as string;
+    return app.inject({
+      method: 'GET',
+      url: companyId ? `/users?companyId=${companyId}` : '/users',
+      headers: auth(token),
+    });
+  };
+
+  it('carries each person’s permissions', async () => {
+    const users = (await listAs('ops@knowyourev.example')).json().users as Record<string, number>[];
+    const tech = users.find((u) => u.id === ('u-tech' as unknown as number))!;
+    assert.equal(tech.can_read, 1);
+    assert.equal(tech.can_write, 0);
+  });
+
+  it('narrows to one company for an administrator', async () => {
+    const users = (await listAs('ops@knowyourev.example', ACME)).json().users as { id: string }[];
+    assert.deepEqual(users.map((u) => u.id).sort(), ['u-owner', 'u-tech']);
+  });
+
+  /**
+   * The filter sits on top of the tenant scope. A company asking for somebody
+   * else's id gets their own rows back, not an error and not the other
+   * company's — the scope clause is still in the query.
+   */
+  it('cannot be used by a company to reach another tenant', async () => {
+    seedCompany(store, 'company-rival', 'Rival', {}, Date.now());
+    store.run(
+      'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
+      'u-rival', 'company-rival', 'tech@rival.example', 'R', 'user', 'x', 'active', Date.now()
+    );
+
+    const users = (await listAs('owner@acme.example', 'company-rival')).json().users as {
+      id: string;
+    }[];
+    assert.ok(!users.some((u) => u.id === 'u-rival'));
+  });
+});
