@@ -61,7 +61,7 @@ function useEntryFlow() {
 }
 
 function Shell() {
-  const { p, mode } = useTheme();
+  const { p } = useTheme();
   const connectedBatteryId = useSessionStore((s) => s.connectedBatteryId);
   const connect = useTelemetryStore((s) => s.connect);
   const disconnect = useTelemetryStore((s) => s.disconnect);
@@ -94,7 +94,8 @@ function Shell() {
 
   return (
     <View style={{ flex: 1, backgroundColor: p.panelBase }}>
-      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+      {/* The hero is olive on every screen, so the clock is always light. */}
+      <StatusBar style="light" />
       <ErrorBoundary scope="app">
         <Stack
           screenOptions={{

@@ -9,72 +9,58 @@
  */
 
 export const palette = {
+  /**
+   * One theme, olive and white.
+   *
+   * The tan leather became olive and, because olive is dark where tan was
+   * light, the ink on it inverted: white on the hero, dark on the panels. Both
+   * materials still mean what they meant -- leather is live instrumentation and
+   * never scrolls, panel is data and always does.
+   *
+   * There is deliberately no dark palette. A second theme that nothing selects
+   * is a second theme nobody checks, and the contrast tests were carrying twice
+   * the assertions for a mode the app will not ship.
+   *
+   * Every value below is held to 4.5:1 by contrast.test.ts. The gradient's
+   * lightest stop is as light as it can be while `leatherInkSoft` still clears
+   * the bar on it -- that stop is the worst case, and it is what fixes the
+   * ceiling here.
+   */
   light: {
-    leatherGradient: ['#D2B189', '#C39D71', '#B58F62'] as const,
-    leatherStitch: '#EFE0C4',
-    leatherInk: '#24180A',
-    leatherInkSoft: '#3A2B19',
-    leatherTrack: '#E6D6BA',
-    leatherNeedle: '#F6EDDB',
-    leatherHub: '#3A2A17',
+    leatherGradient: ['#5A6836', '#4E5B2E', '#425027'] as const,
+    leatherStitch: '#93A470',
+    leatherInk: '#FFFFFF',
+    leatherInkSoft: '#DCE7C2',
+    leatherTrack: '#76855A',
+    leatherNeedle: '#FFFFFF',
+    leatherHub: '#2E3A1F',
 
-    panelBase: '#FCFAF5',
-    panelAlt: '#F4EEE2',
-    panelStitch: '#E4D8C2',
-    panelTrack: '#E9DFCC',
-    panelNeedle: '#3A2A17',
+    panelBase: '#FFFFFF',
+    panelAlt: '#F3F6EC',
+    panelStitch: '#DDE5CE',
+    panelTrack: '#E7EDDD',
+    panelNeedle: '#2E3A1F',
 
-    inkStrong: '#241809',
-    inkSoft: '#6E5B44',
-    inkFaint: '#776B58',
+    inkStrong: '#1F2A16',
+    inkSoft: '#53634A',
+    inkFaint: '#62725A',
 
-    accent: '#8B6238',
-    good: '#4D764C',
-    warn: '#936217',
-    critical: '#A63B27',
+    accent: '#55663A',
+    good: '#3B7343',
+    warn: '#84620F',
+    critical: '#A2391F',
 
-    navPill: '#43301A',
-    navPillInk: '#F6EDDB',
-    navInactive: '#7F715E',
-    backdrop: '#EDE4D3',
+    navPill: '#4A582E',
+    navPillInk: '#FFFFFF',
+    navInactive: '#62725A',
+    backdrop: '#EEF2E4',
 
     needleEdge: 'rgba(0,0,0,0.28)',
-    panelShadow: 'rgba(60,40,15,0.10)',
-  },
-  dark: {
-    leatherGradient: ['#262019', '#1A1611', '#100D09'] as const,
-    leatherStitch: '#4B3E2C',
-    leatherInk: '#F3E9D9',
-    leatherInkSoft: '#B39A72',
-    leatherTrack: '#33291D',
-    leatherNeedle: '#E8C088',
-    leatherHub: '#0E0B08',
-
-    panelBase: '#191510',
-    panelAlt: '#211C15',
-    panelStitch: '#362E22',
-    panelTrack: '#2E271D',
-    panelNeedle: '#E8C088',
-
-    inkStrong: '#F3E9D9',
-    inkSoft: '#B3A48A',
-    inkFaint: '#8F826F',
-
-    accent: '#D6AD73',
-    good: '#8AC78E',
-    warn: '#DCA84E',
-    critical: '#E2775C',
-
-    navPill: '#D6AD73',
-    navPillInk: '#171310',
-    navInactive: '#867E73',
-    backdrop: '#0A0908',
-
-    needleEdge: 'rgba(0,0,0,0.45)',
-    panelShadow: 'rgba(0,0,0,0.45)',
+    panelShadow: 'rgba(31,42,22,0.10)',
   },
 } as const;
 
+/** One mode. Kept as a type so call sites read the same. */
 export type ThemeMode = keyof typeof palette;
 export type Palette = (typeof palette)['light'];
 

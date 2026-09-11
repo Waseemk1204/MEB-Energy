@@ -2,12 +2,17 @@ import { AA_LARGE, AA_NORMAL, contrast, luminance } from './contrast';
 import { palette, type Palette, type ThemeMode } from './tokens';
 
 /**
- * PRD §8: minimum 4.5:1 for text against its background, in both themes.
+ * PRD §8: minimum 4.5:1 for text against its background.
  *
  * These pairings are the ones the app actually renders. When a token's colour
  * changes, this is what says whether the change is shippable — the numbers were
  * previously asserted in the design doc without ever being computed, and five
  * pairings turned out to fail.
+ *
+ * There is one theme now. The olive palette was chosen against these numbers
+ * rather than checked afterwards: the gradient's lightest stop is as light as
+ * it can be while `leatherInkSoft` still clears 4.5:1 on it, which is the
+ * constraint that sets the whole hero's darkness.
  */
 
 type Pair = { name: string; fg: keyof Palette; on: keyof Palette | string };
@@ -37,7 +42,7 @@ const leatherInk: Pair[] = [
   { name: 'leatherInkSoft on leather', fg: 'leatherInkSoft', on: 'leather' },
 ];
 
-const modes: ThemeMode[] = ['light', 'dark'];
+const modes: ThemeMode[] = ['light'];
 
 describe.each(modes)('%s theme', (mode) => {
   const p = palette[mode] as Palette;
@@ -97,15 +102,17 @@ describe.each(modes)('%s theme', (mode) => {
   });
 });
 
-describe('the two themes are genuinely different', () => {
-  it('inverts the panel surface', () => {
+/**
+ * There is no second theme to compare against any more. What used to be
+ * asserted here — that the palettes were not a naive inversion of each other —
+ * is now a property of a single palette: the panel is light and the leather is
+ * dark, and text on each is checked above.
+ */
+describe('the single theme', () => {
+  it('keeps panels light and leather dark, so the two materials read apart', () => {
     expect(luminance(palette.light.panelBase)).toBeGreaterThan(0.5);
-    expect(luminance(palette.dark.panelBase)).toBeLessThan(0.1);
-  });
-
-  it('is not a naive inversion — each theme has its own accent', () => {
-    expect(palette.light.accent).not.toBe(palette.dark.accent);
-    expect(palette.light.leatherNeedle).not.toBe(palette.dark.leatherNeedle);
+    const stops = palette.light.leatherGradient as unknown as string[];
+    for (const stop of stops) expect(luminance(stop)).toBeLessThan(0.25);
   });
 });
 
