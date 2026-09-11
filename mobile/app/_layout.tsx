@@ -40,6 +40,7 @@ function useEntryFlow() {
   const hydrated = useSessionStore((s) => s.hydrated);
   const authenticated = useSessionStore((s) => s.authenticated);
   const connectedBatteryId = useSessionStore((s) => s.connectedBatteryId);
+  const role = useSessionStore((s) => s.role);
   // The navigator must exist before any replace(), or the first one is dropped.
   // This stays undefined until the root navigator is mounted, which avoids
   // tracking readiness with a setState inside an effect.
@@ -53,11 +54,12 @@ function useEntryFlow() {
 
     const target = entryRoute({
       authenticated,
+      role,
       connectedBatteryId,
       segment: segments[0],
     });
     if (target) router.replace(target as Parameters<typeof router.replace>[0]);
-  }, [navigatorReady, hydrated, segments, authenticated, connectedBatteryId, router]);
+  }, [navigatorReady, hydrated, segments, authenticated, role, connectedBatteryId, router]);
 }
 
 function Shell() {

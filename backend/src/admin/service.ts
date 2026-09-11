@@ -537,3 +537,68 @@ export function listDevices(store: Store, principal: Principal) {
   const q = tenantQuery(principal, 'devices', { orderBy: 'serial ASC' });
   return store.all(q.sql, ...q.params);
 }
+
+
+/* ------------------------------------------------------- platform overview */
+
+export interface PlatformOverview {
+  companies: { total: number; withAccess: number; lapsingWithin30Days: number };
+  users: { total: number; active: number };
+  batteries: { total: number; reportingWithin24Hours: number };
+  gateways: { total: number; inService: number };
+}
+
+/**
+ * The numbers an administrator opens the app to see.
+ *
+ * Counted in SQL rather than by listing and measuring in JavaScript: a fleet
+ * that has grown past a page would otherwise report the size of the page.
+ *
+ * `lapsingWithin30Days` is the one that asks for action. The rest describe the
+ * platform; that one says which companies stop working next month unless
+ * somebody renews them.
+ */
+export function platformOverview(store: Store, now = Date.now()): PlatformOverview {
+  const count = (sql: string, ...params: (string | number)[]): number =>
+    store.get<{ n: number }>(sql, ...params)?.n ?? 0;
+
+  const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+
+  return {
+    companies: {
+      total: count('SELECT COUNT(*) AS n FROM companies'),
+      withAccess: count(
+        `SELECT COUNT(DISTINCT c.id) AS n FROM companies c
+         JOIN subscriptions s ON s.company_id = c.id
+         WHERE c.status = 'active' AND s.status = 'active' AND s.renewal_date > ?`,
+        now
+      ),
+      lapsingWithin30Days: count(
+        `SELECT COUNT(DISTINCT c.id) AS n FROM companies c
+         JOIN subscriptions s ON s.company_id = c.id
+         WHERE c.status = 'active' AND s.status = 'active'
+           AND s.renewal_date > ? AND s.renewal_date <= ?`,
+        now,
+        now + THIRTY_DAYS
+      ),
+    },
+    users: {
+      // Platform administrators are excluded: they belong to no company and
+      // are not what "how many users are on the platform" is asking.
+      total: count("SELECT COUNT(*) AS n FROM users WHERE role <> 'admin'"),
+      active: count("SELECT COUNT(*) AS n FROM users WHERE role <> 'admin' AND status = 'active'"),
+    },
+    batteries: {
+      total: count('SELECT COUNT(*) AS n FROM batteries'),
+      // "Connected" is not a state a pack holds; it is a recent reading.
+      reportingWithin24Hours: count(
+        `SELECT COUNT(DISTINCT battery_id) AS n FROM telemetry_readings WHERE recorded_at > ?`,
+        now - 24 * 60 * 60 * 1000
+      ),
+    },
+    gateways: {
+      total: count('SELECT COUNT(*) AS n FROM devices'),
+      inService: count("SELECT COUNT(*) AS n FROM devices WHERE security_status = 'valid'"),
+    },
+  };
+}

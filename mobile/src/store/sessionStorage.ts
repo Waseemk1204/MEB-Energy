@@ -20,9 +20,26 @@ export interface PersistedSession {
   refreshToken: string;
   operator: string;
   company: string;
+  /**
+   * Which surface this person lands on. Persisted so a restored session goes
+   * straight to the right place rather than flashing a technician's screen at
+   * an administrator while the first request comes back.
+   *
+   * It decides navigation only. Every route this unlocks is enforced again on
+   * the server against the token, so a tampered store changes what the app
+   * *shows*, never what it can *do*.
+   */
+  role: SessionRole;
   /** Epoch ms. */
   issuedAt: number;
 }
+
+export type SessionRole = 'admin' | 'company' | 'user';
+
+const ROLES: SessionRole[] = ['admin', 'company', 'user'];
+
+const isRole = (value: unknown): value is SessionRole =>
+  typeof value === 'string' && (ROLES as string[]).includes(value);
 
 const KEY = 'knowyourev.session';
 
@@ -102,6 +119,10 @@ export async function loadSession(): Promise<PersistedSession | null> {
       // one, and the header says so — putting a plausible company here means
       // every tenant that hit this path would see the same wrong name.
       company: parsed.company ?? '',
+      // An unrecognised or missing role restores as the least privileged one.
+      // A stored session from before this existed must not land somebody on an
+      // administrator's screen.
+      role: isRole(parsed.role) ? parsed.role : 'user',
       issuedAt: parsed.issuedAt,
     };
   } catch {

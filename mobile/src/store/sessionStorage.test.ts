@@ -42,6 +42,7 @@ const valid = (over: Partial<PersistedSession> = {}): PersistedSession => ({
   refreshToken: 'refresh-abc',
   operator: 'w.khan@aurorafleet.example',
   company: 'Aurora Fleet',
+  role: 'user',
   issuedAt: Date.now(),
   ...over,
 });
@@ -129,6 +130,30 @@ describe('clearSession', () => {
   });
 });
 
+/**
+ * The stored role decides which screen a restored session opens on. It is not
+ * a permission: every route it reaches is checked again on the server against
+ * the token, so tampering with it changes what the app shows and nothing else.
+ */
+describe('the stored role', () => {
+  it('comes back as it went in', async () => {
+    await saveSession(valid({ role: 'admin' }));
+    expect((await loadSession())?.role).toBe('admin');
+  });
+
+  /** A session stored before roles existed must not open an admin screen. */
+  it('falls back to the least privileged role when absent', async () => {
+    const { role: _role, ...withoutRole } = valid();
+    mockStore.set(KEY, JSON.stringify(withoutRole));
+    expect((await loadSession())?.role).toBe('user');
+  });
+
+  it('refuses a role nobody defined', async () => {
+    mockStore.set(KEY, JSON.stringify({ ...valid(), role: 'superuser' }));
+    expect((await loadSession())?.role).toBe('user');
+  });
+});
+
 describe('what is deliberately not persisted', () => {
   /**
    * A BLE link cannot survive process death. Restoring one would open the
@@ -138,11 +163,14 @@ describe('what is deliberately not persisted', () => {
     await saveSession(valid());
     const raw = mockStore.get(KEY)!;
     expect(raw).not.toMatch(/BAT-/);
+    // The exact set, so that persisting anything new is a deliberate act with
+    // this test in front of it rather than something that drifted in.
     expect(Object.keys(JSON.parse(raw)).sort()).toEqual([
       'company',
       'issuedAt',
       'operator',
       'refreshToken',
+      'role',
       'token',
     ]);
   });

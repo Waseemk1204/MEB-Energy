@@ -59,6 +59,7 @@ import {
   registerBattery,
   registerDevice,
   seatUsage,
+  platformOverview,
   visibleUser,
   setDeviceSecurityStatus,
   setUserStatus,
@@ -762,6 +763,16 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   });
 
   /* ------------------------------------------------------------------ users */
+
+  /**
+   * The platform at a glance. Administrators only — a company owner asking
+   * gets 404 rather than 403, so the route does not confirm it exists.
+   */
+  app.get('/platform/overview', async (request, reply) => {
+    const principal = await principalOf(request);
+    if (principal.role !== 'admin') throw notFound('Overview');
+    return reply.send(platformOverview(store));
+  });
 
   /**
    * Grant a company a year's access.

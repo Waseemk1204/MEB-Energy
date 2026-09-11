@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { dark, light, type Palette } from './palette';
+import { light, type Palette } from './palette';
 
 /**
  * The console's palette against the app's.
@@ -26,7 +26,7 @@ const APP_TOKENS = resolve(process.cwd(), '../mobile/src/theme/tokens.ts');
  * lives in a React Native package with its own toolchain, and pulling it
  * through this build to read six strings is not worth the coupling.
  */
-function appPalette(theme: 'light' | 'dark'): Record<string, string> {
+function appPalette(theme: 'light'): Record<string, string> {
   const source = readFileSync(APP_TOKENS, 'utf8');
   const start = source.indexOf(`  ${theme}: {`);
   if (start === -1) throw new Error(`No ${theme} palette in ${APP_TOKENS}`);
@@ -65,10 +65,9 @@ const SHARED: Partial<Record<keyof Palette, string>> = {
 };
 
 describe.skipIf(!existsSync(APP_TOKENS))('the console palette matches the app’s', () => {
-  for (const [name, theme] of [
-    ['light', light],
-    ['dark', dark],
-  ] as const) {
+  // One theme. The app deleted its dark palette rather than leaving a mode
+  // nothing selects, and there is now nothing on the other side to compare.
+  for (const [name, theme] of [['light', light]] as const) {
     it(`agrees on every shared ${name} token`, () => {
       const app = appPalette(name);
       const disagreements: string[] = [];

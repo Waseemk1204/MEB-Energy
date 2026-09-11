@@ -574,5 +574,45 @@
     "file": "src/server.ts",
     "from": "    if (target.id === principal.userId) {",
     "to": "    if (false) {"
+  },
+  {
+    "name": "every role lands on the battery list",
+    "why": "One login, three destinations — the whole point of the phase.",
+    "package": "mobile",
+    "file": "src/navigation/entryRoute.ts",
+    "from": "  if (onLogin) return connectedBatteryId ? APP : HOME[role];",
+    "to": "  if (onLogin) return connectedBatteryId ? APP : BATTERIES;"
+  },
+  {
+    "name": "role surfaces are open to anyone",
+    "why": "A company owner rendering a frame of the platform-admin screen before the server refuses it.",
+    "package": "mobile",
+    "file": "src/navigation/entryRoute.ts",
+    "from": "  if (owners && !owners.has(role)) return HOME[role];",
+    "to": "  if (false) return HOME[role];"
+  },
+  {
+    "name": "an administrator is locked out of a company surface",
+    "why": "Support work means opening a company's fleet.",
+    "package": "mobile",
+    "file": "src/navigation/entryRoute.ts",
+    "from": "  company: new Set<EntryRole>(['admin', 'company']),",
+    "to": "  company: new Set<EntryRole>(['company']),"
+  },
+  {
+    "name": "unlinked telemetry screens stay open",
+    "why": "They would render gauges for a pack the phone is not talking to.",
+    "package": "mobile",
+    "file": "src/navigation/entryRoute.ts",
+    "from": "  if (!connectedBatteryId) return segment === 'batteries' ? null : BATTERIES;",
+    "to": "  if (!connectedBatteryId) return null;"
+  },
+  {
+    "name": "an unrecognised stored role is trusted",
+    "why": "A tampered store must not land somebody on an administrator's screen.",
+    "package": "mobile",
+    "file": "src/store/sessionStorage.ts",
+    "from": "      role: isRole(parsed.role) ? parsed.role : 'user',",
+    "to": "      role: parsed.role ?? 'user',"
   }
 ]

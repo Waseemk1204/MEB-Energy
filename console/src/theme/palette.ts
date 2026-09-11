@@ -9,65 +9,54 @@
  */
 
 export const light = {
-  leather: '#C39D71',
-  leatherStitch: '#EFE0C4',
-  leatherInk: '#24180A',
-  leatherInkSoft: '#3A2B19',
+  /**
+   * Olive and white, mirroring the app. One theme: the app dropped its dark
+   * palette because a mode nothing selects is a mode nobody checks, and the
+   * console follows so parity.test.ts has one thing to compare against.
+   *
+   * `leather` is flat here where the app has a gradient — this is a browser
+   * chrome, not an instrument cluster — and it takes the app's middle stop so
+   * text checked against the gradient is checked against this too.
+   */
+  leather: '#4E5B2E',
+  leatherStitch: '#93A470',
+  leatherInk: '#FFFFFF',
+  leatherInkSoft: '#DCE7C2',
 
-  panelBase: '#FCFAF5',
-  panelAlt: '#F4EEE2',
-  panelStitch: '#E4D8C2',
+  panelBase: '#FFFFFF',
+  panelAlt: '#F3F6EC',
+  panelStitch: '#DDE5CE',
 
-  inkStrong: '#241809',
-  inkSoft: '#6E5B44',
-  inkFaint: '#776B58',
+  inkStrong: '#1F2A16',
+  inkSoft: '#53634A',
+  inkFaint: '#62725A',
 
-  accent: '#8B6238',
-  good: '#4D764C',
-  warn: '#936217',
-  critical: '#A63B27',
+  accent: '#55663A',
+  good: '#3B7343',
+  warn: '#84620F',
+  critical: '#A2391F',
 
-  navPill: '#43301A',
-  navPillInk: '#F6EDDB',
-  navInactive: '#7F715E',
+  navPill: '#4A582E',
+  navPillInk: '#FFFFFF',
+  navInactive: '#62725A',
 
   /**
    * The focus ring is per-surface, not per-theme.
    *
-   * `accent` reads well on the cream panel and fails on leather — measured at
-   * 2.15:1, under the 3:1 a focus indicator needs. Since the whole sign-in
-   * screen is leather, that is the first thing a keyboard user would have hit.
+   * `accent` reads well on the white panel and fails on olive leather, which
+   * is where the whole sign-in screen sits — so that surface gets white,
+   * measured against the leather rather than assumed.
    */
-  focusOnPanel: '#8B6238',
-  focusOnLeather: '#24180A',
+  focusOnPanel: '#55663A',
+  focusOnLeather: '#FFFFFF',
 } as const;
 
-export const dark = {
-  leather: '#1A1611',
-  leatherStitch: '#4B3E2C',
-  leatherInk: '#F3E9D9',
-  leatherInkSoft: '#B39A72',
-
-  panelBase: '#191510',
-  panelAlt: '#211C15',
-  panelStitch: '#362E22',
-
-  inkStrong: '#F3E9D9',
-  inkSoft: '#B3A48A',
-  inkFaint: '#8F826F',
-
-  accent: '#D6AD73',
-  good: '#8AC78E',
-  warn: '#DCA84E',
-  critical: '#E2775C',
-
-  navPill: '#D6AD73',
-  navPillInk: '#171310',
-  navInactive: '#867E73',
-
-  focusOnPanel: '#D6AD73',
-  focusOnLeather: '#E8C088',
-} as const;
+/**
+ * Kept as an alias so the handful of call sites that still ask for a theme by
+ * name resolve, rather than being edited across the console for a distinction
+ * that no longer exists.
+ */
+export const dark = light;
 
 export type Palette = typeof light;
 export type ThemeMode = 'light' | 'dark';

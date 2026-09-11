@@ -1,7 +1,21 @@
-import { APP, BATTERIES, LOGIN, entryRoute, type EntryState } from './entryRoute';
+import {
+  ADMIN,
+  APP,
+  BATTERIES,
+  COMPANY,
+  LOGIN,
+  entryRoute,
+  type EntryRole,
+  type EntryState,
+} from './entryRoute';
 
+const ROLES: EntryRole[] = ['admin', 'company', 'user'];
+
+// A field technician unless a test says otherwise: the pack flow these cases
+// describe is theirs, and the role-specific cases set it explicitly.
 const at = (over: Partial<EntryState>): EntryState => ({
   authenticated: true,
+  role: 'user',
   connectedBatteryId: 'BAT-00042',
   segment: '(tabs)',
   ...over,
@@ -10,6 +24,8 @@ const at = (over: Partial<EntryState>): EntryState => ({
 /** Every screen the app can be sitting on when the guard runs. */
 const ALL_SEGMENTS = [
   undefined,
+  'admin',
+  'company',
   '(tabs)',
   'login',
   'batteries',
@@ -68,10 +84,11 @@ describe('signed in, no link', () => {
 describe('signed in and linked', () => {
   const linked = (segment: string | undefined) => entryRoute(at({ segment }));
 
-  it('allows every app screen', () => {
-    for (const segment of ALL_SEGMENTS.filter((s) => s !== 'login')) {
-      expect(linked(segment)).toBeNull();
-    }
+  it('allows every screen in the pack flow', () => {
+    const packFlow = ALL_SEGMENTS.filter(
+      (s) => s !== 'login' && s !== 'admin' && s !== 'company'
+    );
+    for (const segment of packFlow) expect(linked(segment)).toBeNull();
   });
 
   it('closes off Login, sending it into the app', () => {
@@ -90,23 +107,96 @@ describe('no redirect loops', () => {
    * redirected onward, the app would bounce between two screens forever.
    */
   const segmentOf = (route: string): string =>
-    route === LOGIN ? 'login' : route === BATTERIES ? 'batteries' : '(tabs)';
+    route === LOGIN ? 'login'
+    : route === BATTERIES ? 'batteries'
+    : route === ADMIN ? 'admin'
+    : route === COMPANY ? 'company'
+    : '(tabs)';
 
   it('settles after a single redirect from every state', () => {
-    for (const authenticated of [true, false]) {
-      for (const connectedBatteryId of ['BAT-00042', null]) {
-        for (const segment of ALL_SEGMENTS) {
-          const first = entryRoute({ authenticated, connectedBatteryId, segment });
-          if (first === null) continue;
+    for (const role of ROLES) {
+      for (const authenticated of [true, false]) {
+        for (const connectedBatteryId of ['BAT-00042', null]) {
+          for (const segment of ALL_SEGMENTS) {
+            const first = entryRoute({ authenticated, role, connectedBatteryId, segment });
+            if (first === null) continue;
 
-          const second = entryRoute({
-            authenticated,
-            connectedBatteryId,
-            segment: segmentOf(first),
-          });
-          expect(second).toBeNull();
+            const second = entryRoute({
+              authenticated,
+              role,
+              connectedBatteryId,
+              segment: segmentOf(first),
+            });
+            expect(second).toBeNull();
+          }
         }
       }
     }
+  });
+});
+
+
+/**
+ * One login, three destinations.
+ *
+ * This decides where the app *sends* somebody. It is not the security
+ * boundary: every route below is checked again on the server against the
+ * token, so a tampered role changes what is shown and never what can be read
+ * or written.
+ */
+describe('where each role lands', () => {
+  const from = (role: EntryRole, segment: string, connectedBatteryId: string | null = null) =>
+    entryRoute({ authenticated: true, role, connectedBatteryId, segment });
+
+  it('sends an administrator to the platform surface', () => {
+    expect(from('admin', 'login')).toBe(ADMIN);
+  });
+
+  it('sends a company owner to their own surface', () => {
+    expect(from('company', 'login')).toBe(COMPANY);
+  });
+
+  it('sends a field user to the Battery List, as before', () => {
+    expect(from('user', 'login')).toBe(BATTERIES);
+  });
+
+  /**
+   * A linked session goes back to the pack rather than a role surface: the
+   * link is the more specific fact, and it is what the person was doing.
+   */
+  it('returns any role to a live pack over their home', () => {
+    for (const role of ROLES) expect(from(role, 'login', 'BAT-00042')).toBe(APP);
+  });
+});
+
+describe('surfaces that belong to a role', () => {
+  const on = (role: EntryRole, segment: string) =>
+    entryRoute({ authenticated: true, role, connectedBatteryId: null, segment });
+
+  it('keeps a company owner off the platform surface', () => {
+    expect(on('company', 'admin')).toBe(COMPANY);
+  });
+
+  it('keeps a field user off both', () => {
+    expect(on('user', 'admin')).toBe(BATTERIES);
+    expect(on('user', 'company')).toBe(BATTERIES);
+  });
+
+  /** Support work means opening a company's fleet, so an admin may be there. */
+  it('lets an administrator onto a company surface', () => {
+    expect(on('admin', 'company')).toBeNull();
+  });
+
+  it('leaves each role alone on its own surface', () => {
+    expect(on('admin', 'admin')).toBeNull();
+    expect(on('company', 'company')).toBeNull();
+  });
+
+  /**
+   * A role surface is not part of the pack flow, so the no-link rule must not
+   * drag an administrator towards the Battery List while they are on it.
+   */
+  it('does not push an unlinked administrator out of their own surface', () => {
+    expect(on('admin', 'admin')).toBeNull();
   });
 });

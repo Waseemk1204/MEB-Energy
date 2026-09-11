@@ -66,7 +66,8 @@ const PAIRINGS: Pairing[] = [
   { where: 'sign-in input text on leather', fg: 'leatherInk', bg: 'leather' },
   { where: 'sign-in error on leather', fg: 'leatherInk', bg: 'leather' },
   { where: 'sign-in footnote on leather', fg: 'leatherInkSoft', bg: 'leather' },
-  { where: 'sign-in button label', fg: 'leatherStitch', bg: 'leatherInk' },
+  // A white button sitting on olive leather, so the label is the olive.
+  { where: 'sign-in button label', fg: 'leather', bg: 'leatherInk' },
 
   // The focus ring has to be visible against everything it can land on.
   // A focus indicator needs 3:1 against what it sits on, and the two surfaces
@@ -126,19 +127,15 @@ for (const [name, theme] of [
 }
 
 describe('both themes are complete', () => {
-  it('define exactly the same tokens', () => {
-    expect(Object.keys(dark).sort()).toEqual(Object.keys(light).sort());
-  });
-
-  it('are genuinely different palettes, not one inverted', () => {
-    const shared = Object.keys(light).filter(
-      (k) => (light[k as keyof Palette] as string) === (dark[k as keyof Palette] as string)
-    );
-    expect(shared).toEqual([]);
-  });
-
-  it('put the panel on opposite sides of mid-grey, as a light and dark theme must', () => {
+  /**
+   * There is no second palette to differ from any more. What used to be
+   * asserted here — that the two were not a naive inversion — is now a
+   * property of the one: panels are light, leather is dark, and text on each
+   * is checked above.
+   */
+  it('keeps panels light and leather dark, so the two materials read apart', () => {
     expect(luminance(light.panelBase)).toBeGreaterThan(0.5);
-    expect(luminance(dark.panelBase)).toBeLessThan(0.1);
+    expect(luminance(light.leather)).toBeLessThan(0.25);
   });
+
 });

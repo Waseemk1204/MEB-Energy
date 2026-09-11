@@ -1,6 +1,6 @@
 import { ApiClient, type Tokens } from './client';
 import { API_BASE_URL } from './config';
-import { saveSession } from '../store/sessionStorage';
+import { type SessionRole, saveSession } from '../store/sessionStorage';
 
 /**
  * The app's single API client.
@@ -12,7 +12,7 @@ import { saveSession } from '../store/sessionStorage';
  */
 
 let tokens: Tokens | null = null;
-let identity: { operator: string; company: string } | null = null;
+let identity: { operator: string; company: string; role: SessionRole } | null = null;
 let onExpired: (() => void) | null = null;
 
 /** Called by the session store once, at startup. */
@@ -20,7 +20,10 @@ export function onSessionExpired(handler: () => void): void {
   onExpired = handler;
 }
 
-export function setTokens(next: Tokens | null, who?: { operator: string; company: string }): void {
+export function setTokens(
+  next: Tokens | null,
+  who?: { operator: string; company: string; role: SessionRole }
+): void {
   tokens = next;
   if (who) identity = who;
   if (next === null) identity = null;
@@ -43,6 +46,7 @@ export const api = new ApiClient({
         refreshToken: next.refreshToken,
         operator: identity.operator,
         company: identity.company,
+        role: identity.role,
         issuedAt: Date.now(),
       });
     }

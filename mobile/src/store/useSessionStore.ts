@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { DEV_BYPASS_AUTH, DEV_BYPASS_BATTERY_ID, OFFLINE_AUTH } from '../config';
-import { clearSession, loadSession, saveSession } from './sessionStorage';
+import { clearSession, loadSession, saveSession, type SessionRole } from './sessionStorage';
 import { logInfo, logWarn } from '../diagnostics/fieldLog';
 import { login, LoginError } from '../api/auth';
 import { api, onSessionExpired, setTokens } from '../api/session';
@@ -49,6 +49,12 @@ type SessionState = {
   authenticated: boolean;
   operator: string | null;
   company: string;
+  /**
+   * Which surface this person belongs on. Decides navigation only — every
+   * route it unlocks is checked again on the server against the token, so
+   * changing it here changes what the app shows, never what it can do.
+   */
+  role: SessionRole;
   /** Deliberately never persisted — see sessionStorage.ts. */
   connectedBatteryId: string | null;
   connectingBatteryId: string | null;
@@ -89,6 +95,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   authenticated: false,
   operator: null,
   company: NO_COMPANY,
+  // The least privileged role until a sign-in says otherwise.
+  role: 'user',
   connectedBatteryId: null,
   connectingBatteryId: null,
   stage: 'idle',
@@ -115,7 +123,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (stored) {
       setTokens(
         { accessToken: stored.token, refreshToken: stored.refreshToken },
-        { operator: stored.operator, company: stored.company }
+        { operator: stored.operator, company: stored.company, role: stored.role }
       );
     }
     set(
@@ -125,11 +133,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             authenticated: true,
             operator: stored.operator,
             company: stored.company,
+            role: stored.role,
             // No link is restored: the BLE session died with the process.
             connectedBatteryId: null,
             stage: 'idle',
           }
-        : { hydrated: true, authenticated: false, operator: null }
+        : { hydrated: true, authenticated: false, operator: null, role: 'user' }
     );
   },
 
@@ -145,13 +154,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (OFFLINE_AUTH) {
       // Development only, and loudly so: no backend is contacted.
       const operator = email.trim() || 'Field user';
-      setTokens({ accessToken: 'offline', refreshToken: 'offline' }, { operator, company: get().company });
-      set({ authenticated: true, operator, signingIn: false });
+      setTokens(
+        { accessToken: 'offline', refreshToken: 'offline' },
+        { operator, company: get().company, role: 'user' }
+      );
+      set({ authenticated: true, operator, role: 'user', signingIn: false });
       void saveSession({
         token: 'offline',
         refreshToken: 'offline',
         operator,
         company: get().company,
+        // The offline path invents a session; it gets the least it can.
+        role: 'user',
         issuedAt: Date.now(),
       });
       return true;
@@ -161,16 +175,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const result = await login(api, email, password);
       const operator = result.user.displayName || result.user.email;
       const company = result.company?.name ?? get().company;
+      const role = result.user.role;
 
       setTokens(
         { accessToken: result.accessToken, refreshToken: result.refreshToken },
-        { operator, company }
+        { operator, company, role }
       );
       await saveSession({
         token: result.accessToken,
         refreshToken: result.refreshToken,
         operator,
         company,
+        role,
         issuedAt: Date.now(),
       });
 
@@ -179,6 +195,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         authenticated: true,
         operator,
         company,
+        role,
         signingIn: false,
         error: null,
         // An older backend does not send this; absent means nothing was

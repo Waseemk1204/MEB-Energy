@@ -17,32 +17,37 @@
  */
 
 :root {
-  --leather-1: #d2b189;
-  --leather-2: #c39d71;
-  --leather-3: #b58f62;
-  --leather-stitch: #efe0c4;
-  --leather-ink: #24180a;
-  --leather-ink-soft: #3a2b19;
+  /*
+   * Olive and white, mirroring the app. One theme: the app dropped its dark
+   * palette because a mode nothing selects is a mode nobody checks, and the
+   * console follows rather than keeping a second set nothing compares against.
+   */
+  --leather-1: #5a6836;
+  --leather-2: #4e5b2e;
+  --leather-3: #425027;
+  --leather-stitch: #93a470;
+  --leather-ink: #ffffff;
+  --leather-ink-soft: #dce7c2;
 
-  --panel-base: #fcfaf5;
-  --panel-alt: #f4eee2;
-  --panel-stitch: #e4d8c2;
+  --panel-base: #ffffff;
+  --panel-alt: #f3f6ec;
+  --panel-stitch: #dde5ce;
 
-  --ink-strong: #241809;
-  --ink-soft: #6e5b44;
-  --ink-faint: #776b58;
+  --ink-strong: #1f2a16;
+  --ink-soft: #53634a;
+  --ink-faint: #62725a;
 
-  --accent: #8b6238;
-  --good: #4d764c;
-  --warn: #936217;
-  --critical: #a63b27;
+  --accent: #55663a;
+  --good: #3b7343;
+  --warn: #84620f;
+  --critical: #a2391f;
 
-  --nav-pill: #43301a;
-  --nav-pill-ink: #f6eddb;
-  --nav-inactive: #7f715e;
-  --backdrop: #ede4d3;
+  --nav-pill: #4a582e;
+  --nav-pill-ink: #ffffff;
+  --nav-inactive: #62725a;
+  --backdrop: #eef2e4;
 
-  --panel-shadow: rgba(60, 40, 15, 0.1);
+  --panel-shadow: rgba(31, 42, 22, 0.1);
 
   /* Type. Space Grotesk for figures, Inter for prose, Fraunces for the wordmark. */
   --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
@@ -51,33 +56,4 @@
 
   --radius: 10px;
   --gutter: 24px;
-}
-
-[data-theme='dark'] {
-  --leather-1: #262019;
-  --leather-2: #1a1611;
-  --leather-3: #100d09;
-  --leather-stitch: #4b3e2c;
-  --leather-ink: #f3e9d9;
-  --leather-ink-soft: #b39a72;
-
-  --panel-base: #191510;
-  --panel-alt: #211c15;
-  --panel-stitch: #362e22;
-
-  --ink-strong: #f3e9d9;
-  --ink-soft: #b3a48a;
-  --ink-faint: #8f826f;
-
-  --accent: #d6ad73;
-  --good: #8ac78e;
-  --warn: #dca84e;
-  --critical: #e2775c;
-
-  --nav-pill: #d6ad73;
-  --nav-pill-ink: #171310;
-  --nav-inactive: #867e73;
-  --backdrop: #0a0908;
-
-  --panel-shadow: rgba(0, 0, 0, 0.45);
 }
