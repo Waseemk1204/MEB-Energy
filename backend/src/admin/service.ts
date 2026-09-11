@@ -5,6 +5,7 @@ import { hashPassword } from '../auth/password.js';
 import { NO_PASSWORD, createInvitation } from '../auth/invitations.js';
 import { revokeAllForUser } from '../auth/tokens.js';
 import { DEFAULT_SESSION_DEVICES } from '../auth/sessionDevices.js';
+import { DEFAULT_PERMISSIONS, type PermissionPatch } from '../auth/permissions.js';
 import { DEFAULT_DEVICE_LIMIT } from './entitlement.js';
 
 /**
@@ -21,8 +22,6 @@ export class AdminError extends Error {
     message: string,
     readonly code:
       | 'forbidden'
-      | 'seat_limit_reached'
-      | 'battery_limit_reached'
       | 'device_limit_reached'
       | 'has_history'
       | 'email_taken'
@@ -106,6 +105,11 @@ export interface NewUser {
   displayName: string;
   role: Role;
   /**
+   * What this person may do. Anything omitted takes the default: they can
+   * read, see location and see health, and they cannot write.
+   */
+  permissions?: PermissionPatch;
+  /**
    * Omit to create the account by invitation, which is the normal path: the
    * new user sets their own first password and nobody else ever sees it.
    *
@@ -166,15 +170,14 @@ export async function createUser(
     }
   }
 
-  if (input.companyId) {
-    const { used, limit } = seatUsage(store, input.companyId);
-    if (limit !== null && used >= limit) {
-      throw new AdminError(
-        `Seat limit reached (${used}/${limit}). Deactivate a user or raise the plan.`,
-        'seat_limit_reached'
-      );
-    }
-  }
+  /*
+   * There is no seat cap. What a company pays is settled outside the product,
+   * so the only commercial control left is whether their access is on at all.
+   * `seatUsage` survives as a count for the admin dashboard -- a number to
+   * look at, not a rule to trip over.
+   */
+
+  const perms = { ...DEFAULT_PERMISSIONS, ...(input.permissions ?? {}) };
 
   const email = input.email.trim().toLowerCase();
   if (store.get('SELECT id FROM users WHERE email = ?', email)) {
@@ -192,7 +195,10 @@ export async function createUser(
 
   return store.transaction(() => {
     store.run(
-      'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
+      `INSERT INTO users
+       (id, company_id, email, display_name, role, password_hash, status, created_at,
+        can_read, can_write, can_location, can_health)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
       id,
       input.companyId,
       email,
@@ -200,7 +206,13 @@ export async function createUser(
       input.role,
       passwordHash,
       byInvitation ? 'invited' : 'active',
-      now
+      now,
+      // Spelled out rather than left to the column defaults, so what a new
+      // user can do is visible where the user is made.
+      perms.read ? 1 : 0,
+      perms.write ? 1 : 0,
+      perms.location ? 1 : 0,
+      perms.health ? 1 : 0
     );
 
     if (!byInvitation) return { id };
@@ -235,6 +247,25 @@ export function listUsers(store: Store, principal: Principal): UserRow[] {
  * expires — up to a fortnight of access after being told they no longer have
  * any. Deactivation has to mean it immediately.
  */
+/**
+ * The user this principal is allowed to act on, or null.
+ *
+ * One rule, used by everything that reaches for somebody else's account. A
+ * company principal sees only its own tenant, and platform administrators are
+ * invisible to them entirely — "not yours" and "not there" are the same answer
+ * on purpose, so the endpoint cannot be used to discover who exists.
+ */
+export function visibleUser(store: Store, principal: Principal, userId: string): UserRow | null {
+  const target = store.get<UserRow>(
+    'SELECT id, company_id, role, status, password_hash FROM users WHERE id = ?',
+    userId
+  );
+  if (!target) return null;
+
+  if (target.role === 'admin') return principal.role === 'admin' ? target : null;
+  return canManageUsers(principal, target.company_id ?? '') ? target : null;
+}
+
 export function setUserStatus(
   store: Store,
   principal: Principal,
@@ -242,10 +273,7 @@ export function setUserStatus(
   status: 'active' | 'suspended',
   now = Date.now()
 ): void {
-  const target = store.get<UserRow>(
-    'SELECT id, company_id, role, status, password_hash FROM users WHERE id = ?',
-    userId
-  );
+  const target = visibleUser(store, principal, userId);
   // Same message for "not yours" and "not there" — see tenancy.assertOwned.
   if (!target) throw new AdminError('User not found', 'not_found');
 
@@ -260,7 +288,6 @@ export function setUserStatus(
   }
 
   if (target.role === 'admin') {
-    if (principal.role !== 'admin') throw new AdminError('User not found', 'not_found');
     if (status === 'suspended') {
       const others = store.get<{ n: number }>(
         "SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND status = 'active' AND id <> ?",
@@ -272,8 +299,6 @@ export function setUserStatus(
         throw new AdminError('Cannot suspend the last active administrator', 'last_admin');
       }
     }
-  } else if (!canManageUsers(principal, target.company_id ?? '')) {
-    throw new AdminError('User not found', 'not_found');
   }
 
   store.run('UPDATE users SET status = ? WHERE id = ?', status, userId);
@@ -467,13 +492,8 @@ export function registerBattery(
     throw new AdminError('That battery serial is already registered', 'email_taken');
   }
 
-  const { used, limit } = batteryUsage(store, input.companyId);
-  if (limit !== null && used >= limit) {
-    throw new AdminError(
-      `Battery limit reached (${used}/${limit}). Raise the plan to add more.`,
-      'battery_limit_reached'
-    );
-  }
+  // No battery cap either, for the same reason as seats. `batteryUsage`
+  // remains a count for the dashboard.
 
   const id = randomUUID();
   store.run(

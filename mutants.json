@@ -526,5 +526,53 @@
     "file": "src/admin/service.ts",
     "from": "input.deviceLimit === undefined ? DEFAULT_DEVICE_LIMIT : input.deviceLimit,",
     "to": "input.deviceLimit ?? DEFAULT_DEVICE_LIMIT,"
+  },
+  {
+    "name": "the write route stops checking permission",
+    "why": "A guard and its call site are two changes; the rule passing does not mean the route calls it.",
+    "package": "backend",
+    "file": "src/server.ts",
+    "from": "      requirePermission(store, principal, 'write');",
+    "to": "      // removed"
+  },
+  {
+    "name": "the read route stops checking permission",
+    "why": "Same, for read.",
+    "package": "backend",
+    "file": "src/server.ts",
+    "from": "    requirePermission(store, principal, 'read');",
+    "to": "    // removed"
+  },
+  {
+    "name": "write is granted by default",
+    "why": "Granting write should be a decision somebody made, not a side effect of creating an account.",
+    "package": "backend",
+    "file": "src/auth/permissions.ts",
+    "from": "  write: false,",
+    "to": "  write: true,"
+  },
+  {
+    "name": "a suspended account keeps its permissions",
+    "why": "Suspension revokes sessions, but a token issued moments earlier must not outlive it.",
+    "package": "backend",
+    "file": "src/auth/permissions.ts",
+    "from": "  if (!row || row.status !== 'active') {",
+    "to": "  if (!row) {"
+  },
+  {
+    "name": "an administrator loses implicit permissions",
+    "why": "Admins sit outside every company, so no owner could grant them anything.",
+    "package": "backend",
+    "file": "src/auth/permissions.ts",
+    "from": "  if (principal.role === 'admin') return ADMIN_PERMISSIONS;",
+    "to": "  if (false) return ADMIN_PERMISSIONS;"
+  },
+  {
+    "name": "anyone may edit their own permissions",
+    "why": "An owner who could grant themselves write would make the whole setting decorative.",
+    "package": "backend",
+    "file": "src/server.ts",
+    "from": "    if (target.id === principal.userId) {",
+    "to": "    if (false) {"
   }
 ]

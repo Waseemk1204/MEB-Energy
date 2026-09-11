@@ -90,14 +90,16 @@ export function toApiError(error: unknown): ApiError {
 }
 
 /**
- * Seat limits and duplicate emails are conflicts with existing state, not
- * malformed requests — 409 rather than 400, so a client can tell "you asked for
- * something impossible right now" from "you asked wrongly".
+ * Conflicts with existing state, not malformed requests — 409 rather than 400,
+ * so a client can tell "you asked for something impossible right now" from
+ * "you asked wrongly".
+ *
+ * Seat and battery limits used to live here. They are gone: what a company
+ * pays is settled outside the product, so the only commercial control is
+ * whether their access is on.
  */
 const ADMIN_STATUS: Record<AdminError['code'], number> = {
   forbidden: 403,
-  seat_limit_reached: 409,
-  battery_limit_reached: 409,
   device_limit_reached: 409,
   has_history: 409,
   email_taken: 409,

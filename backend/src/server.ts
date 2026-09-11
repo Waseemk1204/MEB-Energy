@@ -10,6 +10,7 @@ import {
   rotateRefreshToken,
   verifyAccessToken,
 } from './auth/tokens.js';
+import { requirePermission, permissionsOf, setPermissions } from './auth/permissions.js';
 import {
   DEFAULT_SESSION_DEVICES,
   describeDevice,
@@ -58,6 +59,7 @@ import {
   registerBattery,
   registerDevice,
   seatUsage,
+  visibleUser,
   setDeviceSecurityStatus,
   setUserStatus,
 } from './admin/service.js';
@@ -163,6 +165,15 @@ const companyBody = z.object({
   batteryLimit: z.number().int().min(1).nullable().optional(),
   renewalDate: z.number().int().positive().optional(),
 });
+
+const permissionsBody = z
+  .object({
+    read: z.boolean().optional(),
+    write: z.boolean().optional(),
+    location: z.boolean().optional(),
+    health: z.boolean().optional(),
+  })
+  .refine((b) => Object.keys(b).length > 0, { message: 'nothing to change' });
 
 const userBody = z.object({
   companyId: z.string().min(1).nullable(),
@@ -494,6 +505,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
   app.get<{ Params: { id: string } }>('/batteries/:id', async (request, reply) => {
     const principal = await principalOf(request);
+    requirePermission(store, principal, 'read');
     // Scoped rather than fetched-then-checked, so a foreign id is simply absent.
     const q = tenantQuery(principal, 'batteries', { where: 'id = ?', params: [request.params.id] });
     const battery = store.all<{ id: string }>(q.sql, ...q.params)[0];
@@ -563,6 +575,16 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     '/batteries/:id/parameters/:key',
     async (request, reply) => {
       const principal = await principalOf(request);
+
+      /*
+       * Read fresh from the database on every write, never from the token.
+       * A token lives fifteen minutes; if this rode inside one, revoking
+       * write from somebody would leave them writing for up to fifteen
+       * minutes more, and the person being revoked is usually the one you
+       * most want stopped now.
+       */
+      requirePermission(store, principal, 'write');
+
       const body = parse(writeBody, request.body);
 
       // Only an admin may claim a force push; asking for one is not a grant.
@@ -880,6 +902,36 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const { status } = parse(statusBody, request.body);
     setUserStatus(store, principal, request.params.id, status);
     return reply.status(204).send();
+  });
+
+  /**
+   * What a user may do, set by their company.
+   *
+   * Scoped through the same rule that guards status changes, so a company can
+   * only reach its own people and an administrator can reach anyone. Takes
+   * effect on the next request the user makes, not at their next token
+   * renewal, because permissions are read per request rather than carried.
+   */
+  app.patch<{ Params: { id: string } }>('/users/:id/permissions', async (request, reply) => {
+    const principal = await principalOf(request);
+    const patch = parse(permissionsBody, request.body);
+
+    // Reuse the visibility rule rather than restating it: if this principal
+    // cannot see the user, the user is simply not found.
+    const target = visibleUser(store, principal, request.params.id);
+    if (!target) throw notFound('User');
+
+    /*
+     * Nobody edits their own permissions. A company owner who could grant
+     * themselves write would make the setting decorative, and an owner who
+     * could remove their own read would lock themselves out with no way back.
+     */
+    if (target.id === principal.userId) {
+      throw forbidden('You cannot change your own permissions');
+    }
+
+    setPermissions(store, target.id, patch);
+    return reply.send(permissionsOf(store, { ...principal, userId: target.id, role: target.role }));
   });
 
   /**

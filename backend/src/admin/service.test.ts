@@ -174,23 +174,30 @@ describe('creating users', () => {
   });
 });
 
-describe('seat limits', () => {
+/**
+ * Seats are counted, not capped.
+ *
+ * The cap is gone deliberately: what a company pays is settled outside the
+ * product, so the only commercial control is whether their access is on.
+ * Counting stays because the admin dashboard reports a total.
+ */
+describe('counting seats', () => {
   it('counts only active users', async () => {
     assert.equal(seatUsage(store, ACME).used, 2);
     setUserStatus(store, admin, 'u-acme-field', 'suspended');
     assert.equal(seatUsage(store, ACME).used, 1);
   });
 
-  it('refuses a user beyond the plan', async () => {
-    await createUser(store, acmeOwner, newUser()); // third of three
-    assert.equal(await codeOf(() => createUser(store, acmeOwner, newUser())), 'seat_limit_reached');
+  /** The plan says three. That is now a number, not a gate. */
+  it('does not refuse a user beyond the plan', async () => {
+    for (let i = 0; i < 6; i += 1) {
+      assert.equal(await codeOf(() => createUser(store, acmeOwner, newUser())), null);
+    }
+    assert.equal(seatUsage(store, ACME).used, 8);
   });
 
-  it('frees a seat when a user is suspended', async () => {
-    await createUser(store, acmeOwner, newUser());
-    assert.equal(await codeOf(() => createUser(store, acmeOwner, newUser())), 'seat_limit_reached');
-    setUserStatus(store, acmeOwner, 'u-acme-field', 'suspended');
-    assert.equal(await codeOf(() => createUser(store, acmeOwner, newUser())), null);
+  it('still reports the plan figure, for the dashboard to show', () => {
+    assert.equal(seatUsage(store, ACME).limit, 3);
   });
 
   /** An administrator is platform-wide and consumes no tenant's seat. */

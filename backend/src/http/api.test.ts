@@ -35,9 +35,17 @@ const dispatcher: Dispatcher = {
 const seedUsers = async () => {
   const hash = await hashPassword(PASSWORD, CHEAP);
   const now = Date.now();
+  /*
+   * These fixtures grant every permission. The suite is about tenancy, policy
+   * and the audit trail; permissions have their own file. Left at the defaults
+   * the technicians here could not write, and each of these tests would fail
+   * for a reason it is not about.
+   */
   const insert = (id: string, company: string | null, email: string, role: string, status = 'active') =>
     store.run(
-      'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
+      `INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at,
+                          can_read, can_write, can_location, can_health)
+       VALUES (?,?,?,?,?,?,?,?,1,1,1,1)`,
       id,
       company,
       email,
@@ -766,7 +774,9 @@ describe('the fleet query itself is bounded', () => {
     // signed into, which is the entitlement check doing its job.
     seedCompany(spied, 'c9', 'C', {}, now);
     spied.run(
-      'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
+      `INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at,
+                          can_read, can_write, can_location, can_health)
+       VALUES (?,?,?,?,?,?,?,?,1,1,1,1)`,
       'u9', 'c9', 'probe@c.example', 'Probe', 'user', await hashPassword(PASSWORD, CHEAP), 'active', now
     );
 

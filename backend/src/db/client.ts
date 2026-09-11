@@ -51,6 +51,16 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active',
   created_at INTEGER NOT NULL,
+
+  -- What this person may do, set by their company. Separate from their role:
+  -- the role says which tenant boundary they sit inside, these say what they
+  -- may do within it. Write is off by default because granting it should be a
+  -- decision somebody made, not something that happened.
+  can_read INTEGER NOT NULL DEFAULT 1,
+  can_write INTEGER NOT NULL DEFAULT 0,
+  can_location INTEGER NOT NULL DEFAULT 1,
+  can_health INTEGER NOT NULL DEFAULT 1,
+
   -- A non-admin principal must belong to a tenant. Enforced here so no code
   -- path can create a rootless user that the scoping rules cannot classify.
   CHECK ((role = 'admin' AND company_id IS NULL) OR (role <> 'admin' AND company_id IS NOT NULL))
@@ -304,6 +314,12 @@ export function createStore(file = ':memory:'): Store {
     addColumnIfMissing(db, 'audit_events', 'client_event_id', 'TEXT');
     addColumnIfMissing(db, 'subscriptions', 'session_device_limit', 'INTEGER');
     addColumnIfMissing(db, 'refresh_tokens', 'device_label', 'TEXT');
+    // Existing accounts inherit the defaults: they can read, see location and
+    // see health, and nobody silently gains write.
+    addColumnIfMissing(db, 'users', 'can_read', 'INTEGER NOT NULL DEFAULT 1');
+    addColumnIfMissing(db, 'users', 'can_write', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(db, 'users', 'can_location', 'INTEGER NOT NULL DEFAULT 1');
+    addColumnIfMissing(db, 'users', 'can_health', 'INTEGER NOT NULL DEFAULT 1');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

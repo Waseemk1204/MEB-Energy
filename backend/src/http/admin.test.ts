@@ -154,11 +154,11 @@ describe('creating users over HTTP', () => {
     assert.equal(res.json().error, 'email_taken');
   });
 
-  it('returns 409 when the plan is full', async () => {
+  /** No seat cap: the plan figure is reporting, not a gate. */
+  it('creates users past the plan figure without refusing', async () => {
     await create('owner@acme.example', newUserPayload()); // third of three
     const res = await create('owner@acme.example', newUserPayload());
-    assert.equal(res.statusCode, 409);
-    assert.equal(res.json().error, 'seat_limit_reached');
+    assert.equal(res.statusCode, 201);
   });
 
   it('rejects a weak password at the boundary', async () => {
