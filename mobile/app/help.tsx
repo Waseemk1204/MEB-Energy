@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { LayoutAnimation, Platform, Pressable, Share, StyleSheet, Text, UIManager, View } from 'react-native';
 import { ChevronDown } from 'lucide-react-native';
 import { useTheme } from '../src/theme/ThemeProvider';
+import { APP_NAME } from '../src/brand';
 import { radii } from '../src/theme/tokens';
 import { type as T } from '../src/theme/type';
 import { ScreenScaffold } from '../src/ui/ScreenScaffold';
@@ -86,7 +87,7 @@ export default function Help() {
           <PrimaryButton
             label="Export diagnostic log"
             onPress={() =>
-              Share.share({ title: 'KnowyourEV diagnostic log', message: formatLog() })
+              Share.share({ title: `${APP_NAME} diagnostic log`, message: formatLog() })
             }
           />
         </View>
@@ -102,9 +103,9 @@ export default function Help() {
 
       <SectionLabel>Support</SectionLabel>
       <View style={[styles.item, { backgroundColor: p.panelAlt }]}>
-        <Text style={[T.rowLabel, { color: p.inkStrong }]}>KnowyourEV support</Text>
+        <Text style={[T.rowLabel, { color: p.inkStrong }]}>Support</Text>
         <Text style={[T.caption, { color: p.inkSoft, marginTop: 6 }]}>
-          support@knowyourev.example · Quote your battery ID and, if one is running, the support
+          Ask your administrator · Quote your battery ID and, if one is running, the support
           session ID from the Support screen.
         </Text>
       </View>

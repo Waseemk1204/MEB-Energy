@@ -1,7 +1,7 @@
 import { logWarn } from '../diagnostics/fieldLog';
 
 /**
- * Typed client for the KnowyourEV backend.
+ * Typed client for the backend.
  *
  * Two behaviours are worth knowing about:
  *

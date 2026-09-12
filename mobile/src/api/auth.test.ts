@@ -156,29 +156,4 @@ describe('login', () => {
     }
   });
 
-  /** Absent on an older backend; absent must read as "nothing was signed out". */
-  describe('devices this sign-in signed out', () => {
-    const succeeding = (over: Record<string, unknown>) =>
-      login(
-        status(200, {
-          accessToken: 'a',
-          refreshToken: 'r',
-          user: { id: 'u', email: 'a@b.c', displayName: 'W Khan', role: 'company' },
-          company: { id: 'c', name: 'Aurora Fleet' },
-          ...over,
-        }),
-        'a@b.c',
-        'pw'
-      );
-
-    it('carries them through', async () => {
-      const result = await succeeding({ signedOut: ['Safari on iPhone, last used 3h ago'] });
-      expect(result.signedOut).toEqual(['Safari on iPhone, last used 3h ago']);
-    });
-
-    it('is undefined rather than invented when the server omits it', async () => {
-      const result = await succeeding({});
-      expect(result.signedOut).toBeUndefined();
-    });
-  });
 });

@@ -26,7 +26,7 @@ import {
 } from './auditStorage';
 import type { ActivityEntry } from './useActivityStore';
 
-const KEY = 'knowyourev.audit.v1';
+const KEY = 'meb.audit.v1';
 
 const entry = (over: Partial<ActivityEntry> = {}): ActivityEntry => ({
   id: 'w1',

@@ -17,6 +17,8 @@ import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { useSessionStore } from '../../src/store/useSessionStore';
 import { useSecurityStore } from '../../src/store/useSecurityStore';
 import { DEV_BYPASS_AUTH } from '../../src/config';
+import { useInstallPrompt } from '../../src/pwa/install';
+import { ROLE_LABEL } from '../../src/api/company';
 
 /**
  * Configuration, kept separate from monitoring so a parameter can never be
@@ -37,6 +39,8 @@ export default function Settings() {
   const pinSet = useSecurityStore((s) => s.pinSet);
   const pinSetAt = useSecurityStore((s) => s.pinSetAt);
   const disconnect = useSessionStore((s) => s.disconnect);
+  const role = useSessionStore((s) => s.role);
+  const install = useInstallPrompt();
 
   return (
     <ScreenScaffold
@@ -96,7 +100,16 @@ export default function Settings() {
       <SectionLabel>Session</SectionLabel>
       <RowGroup tone="alt">
         <DataRow label="Signed in as" value={operator ?? '—'} />
+        <DataRow label="Role" value={ROLE_LABEL[role]} />
         <DataRow label="Company" value={company} />
+        {role === 'company' ? (
+          <DataRow label="Company settings" onPress={() => router.push('/company')} />
+        ) : null}
+        {install.kind === 'promptable' ? (
+          <DataRow label="Install on this device" onPress={() => void install.install()} />
+        ) : install.kind === 'manual' ? (
+          <DataRow label="Install on this device" value={install.hint} />
+        ) : null}
         <DataRow label="Connected battery" value={connectedBatteryId ?? 'none'} />
         <DataRow
           label="Switch battery"

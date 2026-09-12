@@ -1,7 +1,7 @@
 /**
  * The PRD §7.4 entry flow, as a pure decision.
  *
- *   Login → Select Battery → Connect KnowyourEV Device → Authenticate Device
+ *   Login → Select Battery → Connect gateway → Authenticate Device
  *         → Detect BMS → Battery Dashboard
  *
  * Kept separate from the navigation plumbing so the policy can be tested
@@ -10,15 +10,16 @@
  */
 
 export type EntrySegment = string | undefined;
-export type EntryRole = 'admin' | 'company' | 'user';
+
+/** 'company' is the company's administrator, 'user' a technician. */
+export type EntryRole = 'company' | 'user';
 
 export interface EntryState {
   authenticated: boolean;
   /**
    * Who this is. The technician flow below applies to field users; an
-   * administrator and a company owner land on their own surfaces instead,
-   * because the pack-connection sequence is not what either of them opens the
-   * app to do.
+   * administrator lands on the company surface instead, because the
+   * pack-connection sequence is not what they open the app to do.
    */
   role: EntryRole;
   /** Null when no BLE link is established. Never restored from storage. */
@@ -30,15 +31,21 @@ export interface EntryState {
 export const LOGIN = '/login';
 export const BATTERIES = '/batteries';
 export const APP = '/(tabs)';
-export const ADMIN = '/admin';
 export const COMPANY = '/company';
+export const ACCEPT_INVITE = '/accept-invite';
 
 /** Where each role belongs when it has nowhere better to be. */
 export const HOME: Record<EntryRole, string> = {
-  admin: ADMIN,
   company: COMPANY,
   user: BATTERIES,
 };
+
+/**
+ * Screens a signed-out person may reach. Accepting an invitation is the one
+ * thing somebody with no account yet is meant to do, so it sits beside Login
+ * rather than behind it.
+ */
+const PUBLIC: ReadonlySet<string> = new Set(['login', 'accept-invite']);
 
 /**
  * The only segments that belong to a role. Everything else — the pack flow and
@@ -53,10 +60,10 @@ export const HOME: Record<EntryRole, string> = {
  * server against the token; this only decides where the app sends somebody.
  */
 const RESTRICTED: Record<string, ReadonlySet<EntryRole>> = {
-  // A company owner has no business on the platform-admin surface.
-  admin: new Set<EntryRole>(['admin']),
-  // Administrators reach a company's surface too — support work needs it.
-  company: new Set<EntryRole>(['admin', 'company']),
+  // The company surface: people, fleet, gateways, the ledger, remote support.
+  company: new Set<EntryRole>(['company']),
+  // One person's account and permissions.
+  users: new Set<EntryRole>(['company']),
 };
 
 /**
@@ -69,13 +76,16 @@ export function entryRoute({
   connectedBatteryId,
   segment,
 }: EntryState): string | null {
-  const onLogin = segment === 'login';
+  const onPublic = segment !== undefined && PUBLIC.has(segment);
 
-  // Signed out: Login is the only reachable screen.
-  if (!authenticated) return onLogin ? null : LOGIN;
+  // Signed out: Login and the invitation screen are the only reachable ones.
+  if (!authenticated) return onPublic ? null : LOGIN;
 
-  // Signed in: Login is closed off, and each role goes to its own home.
-  if (onLogin) return connectedBatteryId ? APP : HOME[role];
+  // Signed in: Login is closed off, and each role goes to its own home. The
+  // invitation screen stays reachable — it signs the person in as somebody
+  // else, and does its own sign-out first.
+  if (segment === 'login') return connectedBatteryId ? APP : HOME[role];
+  if (segment === 'accept-invite') return null;
 
   // A surface that belongs to another role. The server would refuse the data
   // anyway; this stops the app rendering a frame of it first.

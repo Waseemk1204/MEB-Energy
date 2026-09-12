@@ -19,7 +19,7 @@ import type { ActivityEntry } from './useActivityStore';
  *    week offsite must not lose the start of their work to the end of it
  */
 
-const KEY = 'knowyourev.audit.v1';
+const KEY = 'meb.audit.v1';
 
 /** Bounded so a long-lived install cannot grow without limit. */
 export const AUDIT_CAP = 500;
@@ -124,7 +124,7 @@ export function exportAudit(log: AuditLog, context: { battery: string; operator:
       battery: context.battery,
       operator: context.operator,
       note:
-        'Local write history from the KnowyourEV app. Not the authoritative audit ' +
+        'Local write history from the app. Not the authoritative audit ' +
         'ledger; entries may be missing if the cap was reached.',
       droppedCount: log.droppedCount,
       entryCount: log.entries.length,

@@ -33,7 +33,7 @@ type TabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tab
  * Four tabs, maximum. The active tab is a filled pill; inactive tabs are bare.
  *
  * The reference mock's DRIVE and CHARGING tabs are Tesla artefacts with no
- * KnowyourEV data behind them. Protection, BMS Info, Device, Support Session
+ * gateway data behind them. Protection, BMS Info, Device, Support Session
  * and Help are reached from Dashboard rows instead — a fifth pill would make
  * the bar illegible at 375pt.
  */

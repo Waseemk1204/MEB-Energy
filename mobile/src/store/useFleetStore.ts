@@ -20,7 +20,7 @@ import { logWarn } from '../diagnostics/fieldLog';
  * and `stale` says plainly that is what happened.
  */
 
-const CACHE_KEY = 'knowyourev.fleet.v1';
+const CACHE_KEY = 'meb.fleet.v1';
 
 export interface LastReading {
   soc: number;

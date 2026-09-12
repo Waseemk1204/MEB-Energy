@@ -6,6 +6,7 @@ import { type as T } from '../src/theme/type';
 import { LeatherPanel } from '../src/ui/LeatherPanel';
 import { PrimaryButton } from '../src/ui/primitives';
 import { profile } from '../src/bms/capabilityProfile';
+import { APP_NAME, APP_TAGLINE } from '../src/brand';
 import { useSessionStore } from '../src/store/useSessionStore';
 import { useBottomInset, useTopInset } from '../src/ui/safeArea';
 
@@ -29,9 +30,9 @@ export default function Login() {
         style={{ flex: 1, paddingTop: topInset, paddingBottom: bottomInset + 24 }}
       >
         <View style={styles.brand}>
-          <Text style={[T.wordmark, { color: p.leatherInk }]}>KnowyourEV</Text>
+          <Text style={[T.wordmark, { color: p.leatherInk }]}>{APP_NAME}</Text>
           <Text style={[T.screenSub, { color: p.leatherInkSoft, marginTop: 8 }]}>
-            Battery diagnostics & configuration
+            {APP_TAGLINE}
           </Text>
         </View>
 

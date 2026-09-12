@@ -5,7 +5,7 @@ import { describeReading, fromRow, useFleetStore } from './useFleetStore';
 jest.mock('../api/session', () => ({ api: { get: jest.fn() } }));
 jest.mock('../diagnostics/fieldLog', () => ({ logInfo: jest.fn(), logWarn: jest.fn() }));
 
-const CACHE_KEY = 'knowyourev.fleet.v1';
+const CACHE_KEY = 'meb.fleet.v1';
 const get = api.get as jest.Mock;
 
 const row = (over: Record<string, unknown> = {}) => ({

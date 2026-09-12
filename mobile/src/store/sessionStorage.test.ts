@@ -35,7 +35,7 @@ import {
   type PersistedSession,
 } from './sessionStorage';
 
-const KEY = 'knowyourev.session';
+const KEY = 'meb.session';
 
 const valid = (over: Partial<PersistedSession> = {}): PersistedSession => ({
   token: 'access-abc',
@@ -138,8 +138,18 @@ describe('clearSession', () => {
  */
 describe('the stored role', () => {
   it('comes back as it went in', async () => {
-    await saveSession(valid({ role: 'admin' }));
-    expect((await loadSession())?.role).toBe('admin');
+    await saveSession(valid({ role: 'company' }));
+    expect((await loadSession())?.role).toBe('company');
+  });
+
+  /**
+   * The platform-administrator role is gone. A session stored while it
+   * existed must restore as the least privileged, not as something the app
+   * no longer knows how to route.
+   */
+  it('restores the retired platform-admin role as a technician', async () => {
+    mockStore.set(KEY, JSON.stringify({ ...valid(), role: 'admin' }));
+    expect((await loadSession())?.role).toBe('user');
   });
 
   /** A session stored before roles existed must not open an admin screen. */

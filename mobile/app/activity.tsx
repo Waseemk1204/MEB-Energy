@@ -1,6 +1,7 @@
 import React from 'react';
 import { Share, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../src/theme/ThemeProvider';
+import { APP_NAME } from '../src/brand';
 import { dangerColor, radii } from '../src/theme/tokens';
 import { type as T } from '../src/theme/type';
 import { ScreenScaffold } from '../src/ui/ScreenScaffold';
@@ -35,7 +36,7 @@ export default function Activity() {
 
   const onExport = () =>
     Share.share({
-      title: 'KnowyourEV write history',
+      title: `${APP_NAME} write history`,
       message: exportAudit(
         { entries, droppedCount },
         { battery: battery ?? 'unknown', operator: operator ?? 'unknown' }

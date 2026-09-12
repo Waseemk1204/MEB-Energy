@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import { radii, space } from '../../src/theme/tokens';
 import { type as T } from '../../src/theme/type';
 import { ScreenScaffold } from '../../src/ui/ScreenScaffold';
+import { confirmDestructive } from '../../src/ui/confirm';
 import { PrimaryButton, SectionLabel, StatusChip } from '../../src/ui/primitives';
 import { api } from '../../src/api/session';
 import {
@@ -22,9 +22,8 @@ import {
   reinstatePack,
   retirePack,
   type FleetPack,
-} from '../../src/api/admin';
+} from '../../src/api/company';
 import { profile } from '../../src/bms/capabilityProfile';
-import { useSessionStore } from '../../src/store/useSessionStore';
 import { logWarn } from '../../src/diagnostics/fieldLog';
 
 /**
@@ -39,7 +38,6 @@ import { logWarn } from '../../src/diagnostics/fieldLog';
  */
 export default function Fleet() {
   const { p } = useTheme();
-  const companyId = useSessionStore((s) => s.companyId);
 
   const [fleet, setFleet] = useState<FleetPack[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +70,7 @@ export default function Fleet() {
 
   const onAdd = async () => {
     const trimmed = serial.trim();
-    if (!companyId || !trimmed) return;
+    if (!trimmed) return;
     setBusy(true);
     setError(null);
     try {
@@ -80,7 +78,6 @@ export default function Fleet() {
       // cell count follow from it; a second BMS is a second profile, not a
       // form field here.
       await addPack(api, {
-        companyId,
         serial: trimmed,
         chemistry: profile.chemistry,
         cellCount: profile.cellCount,
@@ -115,23 +112,17 @@ export default function Fleet() {
   };
 
   const onRetire = (pack: FleetPack) => {
-    Alert.alert(
+    confirmDestructive(
       `Retire ${pack.serial}?`,
       'It leaves the technicians’ list and anyone connected to it is disconnected. Its history is kept, and it can be brought back.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Retire',
-          style: 'destructive',
-          onPress: () => {
-            void retirePack(api, pack.id)
-              .then(reload)
-              .catch((caught: unknown) =>
-                setError(caught instanceof Error ? caught.message : 'Could not retire it')
-              );
-          },
-        },
-      ]
+      'Retire',
+      () => {
+        void retirePack(api, pack.id)
+          .then(reload)
+          .catch((caught: unknown) =>
+            setError(caught instanceof Error ? caught.message : 'Could not retire it')
+          );
+      }
     );
   };
 

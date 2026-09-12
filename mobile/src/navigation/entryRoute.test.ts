@@ -1,5 +1,5 @@
 import {
-  ADMIN,
+  ACCEPT_INVITE,
   APP,
   BATTERIES,
   COMPANY,
@@ -9,7 +9,7 @@ import {
   type EntryState,
 } from './entryRoute';
 
-const ROLES: EntryRole[] = ['admin', 'company', 'user'];
+const ROLES: EntryRole[] = ['company', 'user'];
 
 // A field technician unless a test says otherwise: the pack flow these cases
 // describe is theirs, and the role-specific cases set it explicitly.
@@ -24,8 +24,9 @@ const at = (over: Partial<EntryState>): EntryState => ({
 /** Every screen the app can be sitting on when the guard runs. */
 const ALL_SEGMENTS = [
   undefined,
-  'admin',
+  'accept-invite',
   'company',
+  'users',
   '(tabs)',
   'login',
   'batteries',
@@ -41,7 +42,7 @@ const ALL_SEGMENTS = [
 
 describe('signed out', () => {
   it('sends every screen to Login', () => {
-    for (const segment of ALL_SEGMENTS.filter((s) => s !== 'login')) {
+    for (const segment of ALL_SEGMENTS.filter((s) => s !== 'login' && s !== 'accept-invite')) {
       expect(entryRoute(at({ authenticated: false, connectedBatteryId: null, segment }))).toBe(
         LOGIN
       );
@@ -51,6 +52,13 @@ describe('signed out', () => {
   it('leaves Login alone', () => {
     expect(
       entryRoute(at({ authenticated: false, connectedBatteryId: null, segment: 'login' }))
+    ).toBeNull();
+  });
+
+  /** The one screen somebody with no account yet is meant to reach. */
+  it('leaves the invitation screen alone', () => {
+    expect(
+      entryRoute(at({ authenticated: false, connectedBatteryId: null, segment: 'accept-invite' }))
     ).toBeNull();
   });
 
@@ -67,9 +75,10 @@ describe('signed in, no link', () => {
     entryRoute(at({ connectedBatteryId: null, segment }));
 
   it('sends every telemetry screen to the Battery List', () => {
-    for (const segment of ALL_SEGMENTS.filter((s) => s !== 'batteries' && s !== 'login')) {
-      expect(unlinked(segment)).toBe(BATTERIES);
-    }
+    const packFlow = ALL_SEGMENTS.filter(
+      (s) => !['batteries', 'login', 'accept-invite', 'company', 'users'].includes(s ?? '')
+    );
+    for (const segment of packFlow) expect(unlinked(segment)).toBe(BATTERIES);
   });
 
   it('leaves the Battery List alone', () => {
@@ -86,7 +95,7 @@ describe('signed in and linked', () => {
 
   it('allows every screen in the pack flow', () => {
     const packFlow = ALL_SEGMENTS.filter(
-      (s) => s !== 'login' && s !== 'admin' && s !== 'company'
+      (s) => !['login', 'accept-invite', 'company', 'users'].includes(s ?? '')
     );
     for (const segment of packFlow) expect(linked(segment)).toBeNull();
   });
@@ -109,8 +118,8 @@ describe('no redirect loops', () => {
   const segmentOf = (route: string): string =>
     route === LOGIN ? 'login'
     : route === BATTERIES ? 'batteries'
-    : route === ADMIN ? 'admin'
     : route === COMPANY ? 'company'
+    : route === ACCEPT_INVITE ? 'accept-invite'
     : '(tabs)';
 
   it('settles after a single redirect from every state', () => {
@@ -137,7 +146,7 @@ describe('no redirect loops', () => {
 
 
 /**
- * One login, three destinations.
+ * One login, two destinations.
  *
  * This decides where the app *sends* somebody. It is not the security
  * boundary: every route below is checked again on the server against the
@@ -148,11 +157,7 @@ describe('where each role lands', () => {
   const from = (role: EntryRole, segment: string, connectedBatteryId: string | null = null) =>
     entryRoute({ authenticated: true, role, connectedBatteryId, segment });
 
-  it('sends an administrator to the platform surface', () => {
-    expect(from('admin', 'login')).toBe(ADMIN);
-  });
-
-  it('sends a company owner to their own surface', () => {
+  it('sends an administrator to the company surface', () => {
     expect(from('company', 'login')).toBe(COMPANY);
   });
 
@@ -173,23 +178,14 @@ describe('surfaces that belong to a role', () => {
   const on = (role: EntryRole, segment: string) =>
     entryRoute({ authenticated: true, role, connectedBatteryId: null, segment });
 
-  it('keeps a company owner off the platform surface', () => {
-    expect(on('company', 'admin')).toBe(COMPANY);
-  });
-
-  it('keeps a field user off both', () => {
-    expect(on('user', 'admin')).toBe(BATTERIES);
+  it('keeps a technician off the company surface', () => {
     expect(on('user', 'company')).toBe(BATTERIES);
+    expect(on('user', 'users')).toBe(BATTERIES);
   });
 
-  /** Support work means opening a company's fleet, so an admin may be there. */
-  it('lets an administrator onto a company surface', () => {
-    expect(on('admin', 'company')).toBeNull();
-  });
-
-  it('leaves each role alone on its own surface', () => {
-    expect(on('admin', 'admin')).toBeNull();
+  it('leaves an administrator alone on their own surface', () => {
     expect(on('company', 'company')).toBeNull();
+    expect(on('company', 'users')).toBeNull();
   });
 
   /**
@@ -197,6 +193,20 @@ describe('surfaces that belong to a role', () => {
    * drag an administrator towards the Battery List while they are on it.
    */
   it('does not push an unlinked administrator out of their own surface', () => {
-    expect(on('admin', 'admin')).toBeNull();
+    expect(on('company', 'company')).toBeNull();
+  });
+
+  /** The pack flow itself is open to everyone who is signed in. */
+  it('lets an administrator into the pack flow', () => {
+    expect(on('company', 'batteries')).toBeNull();
+    expect(entryRoute({ authenticated: true, role: 'company', connectedBatteryId: 'B', segment: '(tabs)' })).toBeNull();
+  });
+
+  /**
+   * The invitation screen signs somebody in as a new person, so it must stay
+   * reachable even while a session exists — it signs that session out itself.
+   */
+  it('leaves the invitation screen reachable while signed in', () => {
+    for (const role of ROLES) expect(on(role, 'accept-invite')).toBeNull();
   });
 });

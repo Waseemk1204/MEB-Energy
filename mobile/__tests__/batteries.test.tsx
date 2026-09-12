@@ -219,7 +219,7 @@ describe('connection state', () => {
 });
 
 /**
- * PRD §7.4: Connect KnowyourEV Device → Authenticate Device → Detect BMS.
+ * PRD §7.4: Connect gateway → Authenticate Device → Detect BMS.
  * The steps are shown so a failure names the stage it failed at.
  */
 describe('the connect sequence', () => {
@@ -231,7 +231,7 @@ describe('the connect sequence', () => {
   it('shows all three stages on the battery being linked', async () => {
     useSessionStore.setState({ connectingBatteryId: 'BAT-00051', stage: 'authenticating' });
     const q = await wrap();
-    expect(q.getByText('Connect KnowyourEV device')).toBeTruthy();
+    expect(q.getByText('Connect gateway')).toBeTruthy();
     expect(q.getByText('Authenticate device')).toBeTruthy();
     expect(q.getByText('Detect BMS')).toBeTruthy();
   });

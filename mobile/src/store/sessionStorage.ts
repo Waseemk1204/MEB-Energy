@@ -21,8 +21,8 @@ export interface PersistedSession {
   operator: string;
   company: string;
   /**
-   * The tenant this person belongs to, for creating things inside it. Null for
-   * a platform administrator, who belongs to none.
+   * The company this person belongs to, for creating things inside it. Null
+   * only for a session stored before the id was persisted.
    */
   companyId: string | null;
   /**
@@ -39,23 +39,26 @@ export interface PersistedSession {
   issuedAt: number;
 }
 
-export type SessionRole = 'admin' | 'company' | 'user';
+/** 'company' is the company's administrator, 'user' a technician. */
+export type SessionRole = 'company' | 'user';
 
-const ROLES: SessionRole[] = ['admin', 'company', 'user'];
+const ROLES: SessionRole[] = ['company', 'user'];
 
 const isRole = (value: unknown): value is SessionRole =>
   typeof value === 'string' && (ROLES as string[]).includes(value);
 
-const KEY = 'knowyourev.session';
+const KEY = 'meb.session';
 
 /** Sessions older than this restore as signed out (PRD §8.1: short-lived tokens). */
 export const SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 /**
- * expo-secure-store is native-only. On web it is unavailable, so the dev/web
- * target falls back to localStorage — which is NOT secure storage and must
- * never hold a real production token. Web is a development surface for this
- * app; iOS and Android are the shipping targets and use the Keychain/Keystore.
+ * expo-secure-store is native-only. On the web — the shipping target, as an
+ * installed web app — the session lives in localStorage, the same place any
+ * browser application keeps a bearer token. It is scoped to the app's own
+ * origin, and the tokens in it are short-lived: the access token expires in
+ * fifteen minutes and the refresh token is single-use, so a copied session
+ * is worth little for long. On iOS and Android the Keychain/Keystore is used.
  */
 export const secureBackend = {
   async get(key: string): Promise<string | null> {
@@ -126,7 +129,8 @@ export async function loadSession(): Promise<PersistedSession | null> {
       company: parsed.company ?? '',
       companyId: typeof parsed.companyId === 'string' ? parsed.companyId : null,
       // An unrecognised or missing role restores as the least privileged one.
-      // A stored session from before this existed must not land somebody on an
+      // A stored session from before this existed — or from when a platform
+      // administrator's role did — must not land somebody on an
       // administrator's screen.
       role: isRole(parsed.role) ? parsed.role : 'user',
       issuedAt: parsed.issuedAt,

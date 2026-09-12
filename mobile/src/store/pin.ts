@@ -17,7 +17,7 @@ import { secureBackend } from './sessionStorage';
  * dump does not hand over the digits themselves.
  */
 
-const PIN_KEY = 'knowyourev.pin';
+const PIN_KEY = 'meb.pin';
 
 interface StoredPin {
   salt: string;

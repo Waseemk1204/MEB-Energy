@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { DEV_BYPASS_AUTH, DEV_BYPASS_BATTERY_ID, OFFLINE_AUTH } from '../config';
 import { clearSession, loadSession, saveSession, type SessionRole } from './sessionStorage';
 import { logInfo, logWarn } from '../diagnostics/fieldLog';
-import { login, LoginError } from '../api/auth';
+import { login, LoginError, type LoginResponse } from '../api/auth';
 import { api, onSessionExpired, setTokens } from '../api/session';
 import { useProfileStore } from './useProfileStore';
 import { useActivityStore } from './useActivityStore';
@@ -12,7 +12,7 @@ import { useRemoteChangeStore } from './useRemoteChangeStore';
 /**
  * Session and link state for the PRD §7.4 core flow:
  *
- *   Login → Select Battery → Connect KnowyourEV Device → Authenticate Device
+ *   Login → Select Battery → Connect gateway → Authenticate Device
  *         → Detect BMS → Battery Dashboard
  *
  * Sign-in is a real server round trip; what this store holds afterwards is UI
@@ -30,7 +30,7 @@ export type ConnectStage =
 
 /** The three steps the user is shown while a link is established. */
 export const CONNECT_STEPS: { stage: ConnectStage; label: string }[] = [
-  { stage: 'connecting', label: 'Connect KnowyourEV device' },
+  { stage: 'connecting', label: 'Connect gateway' },
   { stage: 'authenticating', label: 'Authenticate device' },
   { stage: 'detecting', label: 'Detect BMS' },
 ];
@@ -49,7 +49,7 @@ type SessionState = {
   authenticated: boolean;
   operator: string | null;
   company: string;
-  /** The tenant, for creating users and packs inside it. Null for an admin. */
+  /** The company, for creating users and packs inside it. */
   companyId: string | null;
   /**
    * Which surface this person belongs on. Decides navigation only — every
@@ -62,20 +62,14 @@ type SessionState = {
   connectingBatteryId: string | null;
   stage: ConnectStage;
   error: string | null;
-  /**
-   * Devices this sign-in signed out, because the company account is capped at
-   * a number of them. Shown once and dismissible: it reports something that
-   * already happened rather than a condition still in force.
-   */
-  signedOut: string[];
-
   /** True while a sign-in request is in flight. */
   signingIn: boolean;
 
   hydrate: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<boolean>;
   signOut: () => void;
-  dismissSignedOut: () => void;
+  /** After accepting an invitation: the server signed the person straight in. */
+  adopt: (result: LoginResponse) => Promise<void>;
   connect: (batteryId: string) => Promise<boolean>;
   disconnect: () => void;
 };
@@ -105,7 +99,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   stage: 'idle',
   error: null,
   signingIn: false,
-  signedOut: [],
 
   hydrate: async () => {
     if (get().hydrated) return;
@@ -206,9 +199,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         role,
         signingIn: false,
         error: null,
-        // An older backend does not send this; absent means nothing was
-        // signed out, which is the safe reading either way.
-        signedOut: result.signedOut ?? [],
       });
       return true;
     } catch (error) {
@@ -238,12 +228,35 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       stage: 'idle',
       error: null,
       signingIn: false,
-      // The next person to sign in must not inherit the last one's notice.
-      signedOut: [],
     });
   },
 
-  dismissSignedOut: () => set({ signedOut: [] }),
+  /**
+   * The same bookkeeping as a sign-in, for a session the server issued some
+   * other way — accepting an invitation returns the same shape, signed in.
+   */
+  adopt: async (result) => {
+    const operator = result.user.displayName || result.user.email;
+    const company = result.company?.name ?? NO_COMPANY;
+    const companyId = result.company?.id ?? null;
+    const role = result.user.role;
+
+    setTokens(
+      { accessToken: result.accessToken, refreshToken: result.refreshToken },
+      { operator, company, companyId, role }
+    );
+    await saveSession({
+      token: result.accessToken,
+      refreshToken: result.refreshToken,
+      operator,
+      company,
+      companyId,
+      role,
+      issuedAt: Date.now(),
+    });
+    logInfo('session', 'Signed in by invitation', { role });
+    set({ authenticated: true, operator, company, companyId, role, signingIn: false, error: null });
+  },
 
   connect: async (batteryId) => {
     if (get().connectingBatteryId) return false;
@@ -255,7 +268,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ stage: 'authenticating' });
     await wait(650);
 
-    // The app refuses to treat an unverified peripheral as a KnowyourEV device.
+    // The app refuses to treat an unverified peripheral as a company gateway.
     // With BleSource wired this is the challenge/response against the gateway's
     // secure element; failing it must stop the flow here, before any read.
     set({ stage: 'detecting' });

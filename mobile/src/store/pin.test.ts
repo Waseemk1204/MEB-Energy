@@ -40,7 +40,7 @@ Object.defineProperty(globalThis, 'localStorage', {
    variables, so they must be defined before the module under test is imported. */
 import { PIN_DIGITS, clearPin, isValidPinFormat, loadPin, savePin, verifyPin } from './pin';
 
-const KEY = 'knowyourev.pin';
+const KEY = 'meb.pin';
 
 beforeEach(() => {
   mockStore.clear();

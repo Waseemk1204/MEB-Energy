@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../src/theme/ThemeProvider';
+import { APP_NAME } from '../src/brand';
 import { space } from '../src/theme/tokens';
 import { type as T } from '../src/theme/type';
 import { Gauge } from '../src/gauge/Gauge';
@@ -53,7 +54,7 @@ export default function Batteries() {
     <View style={{ flex: 1, backgroundColor: p.panelBase }}>
       <LeatherPanel tone="hero" radius={0} style={{ paddingTop: topInset + 8, paddingBottom: 20 }}>
         <View style={styles.head}>
-          <Text style={[T.wordmark, { color: p.leatherInk, fontSize: 25 }]}>KnowyourEV</Text>
+          <Text style={[T.wordmark, { color: p.leatherInk, fontSize: 25 }]}>{APP_NAME}</Text>
           <Text style={[T.screenSub, { color: p.leatherInkSoft, marginTop: 6 }]}>
             {company} · {batteries.length} {batteries.length === 1 ? 'battery' : 'batteries'}
           </Text>

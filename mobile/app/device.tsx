@@ -10,7 +10,7 @@ import { useFreshness } from '../src/telemetry/freshness';
 
 /**
  * Gateway identity. Security Status is green only when device authentication
- * passed — the app refuses to treat an unverified peripheral as a KnowyourEV
+ * passed — the app refuses to treat an unverified peripheral as a company
  * device, and says so here rather than failing silently.
  *
  * The gateway reports its own serial, hardware revision and firmware over BLE,
@@ -38,7 +38,7 @@ export default function Device() {
   const unknown = 'Not reported yet';
 
   return (
-    <ScreenScaffold title="Device" sub="KnowyourEV gateway">
+    <ScreenScaffold title="Device" sub="Gateway">
       <SectionLabel>Identity</SectionLabel>
       <RowGroup tone="alt">
         <DataRow label="Device ID" value={unknown} />
@@ -81,7 +81,7 @@ export default function Device() {
 
       <Text style={[T.caption, { color: p.inkFaint, marginTop: 16, marginHorizontal: 4 }]}>
         {authenticated
-          ? 'This peripheral passed device authentication. Telemetry and commands are only exchanged with a verified KnowyourEV gateway.'
+          ? 'This peripheral passed device authentication. Telemetry and commands are only exchanged with a verified gateway.'
           : 'This peripheral has not passed device authentication. Reads and writes are blocked until it does.'}
       </Text>
     </ScreenScaffold>

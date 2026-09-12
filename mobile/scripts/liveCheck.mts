@@ -19,6 +19,11 @@
 
 import { ApiClient } from '../src/api/client';
 import { login } from '../src/api/auth';
+import { acceptInvitation } from '../src/api/invitations';
+import { addPack, fetchCompany, invitePerson, listFleet, removePerson } from '../src/api/company';
+import { listGateways, registerGateway, setGatewaySecurity } from '../src/api/gateways';
+import { listLedger } from '../src/api/ledger';
+import { closeSession, isSomeoneOnSite, issueCommand, openSession } from '../src/api/support';
 import { fetchDefinitions, reconcile, describeDrift } from '../src/api/parameters';
 import { profile } from '../src/bms/capabilityProfile';
 import { flushOnce } from '../src/audit/outbox';
@@ -38,8 +43,12 @@ const check = (name: string, ok: boolean, detail: string) => {
   console.log(`  ${ok ? '✓' : '✗'} ${name.padEnd(46)} ${detail}`);
 };
 
-/** Plain fetch, for the setup an administrator would do in the console. */
-async function admin(method: string, path: string, token: string | null, body?: unknown) {
+/**
+ * Plain fetch, for the few reads that verify what the app's own modules did —
+ * looking at the ledger from the outside, checking presence from the outside.
+ * Everything that *does* something goes through the module the app ships.
+ */
+async function raw(method: string, path: string, token: string | null, body?: unknown) {
   const response = await fetch(`${API}${path}`, {
     method,
     headers: {
@@ -66,8 +75,16 @@ function clientFor(tokens: { accessToken: string; refreshToken: string }) {
   });
 }
 
+const anonymous = () =>
+  new ApiClient({
+    baseUrl: API,
+    getTokens: () => null,
+    onTokens: () => undefined,
+    onSignedOut: () => undefined,
+  });
+
 async function main() {
-  console.log(`\nKnowyourEV live check against ${API}\n`);
+  console.log(`\nLive check against ${API}\n`);
 
   const health = await fetch(`${API}/health`).catch(() => null);
   if (!health?.ok) {
@@ -75,136 +92,80 @@ async function main() {
     process.exit(1);
   }
 
-  const adminEmail = process.env.ADMIN_EMAIL ?? 'ops@knowyourev.example';
+  const adminEmail = process.env.ADMIN_EMAIL ?? 'ops@mebenergy.example';
   const adminPassword = process.env.ADMIN_PASSWORD ?? 'first-admin-passphrase';
 
-  const signIn = await admin('POST', '/auth/login', null, {
-    email: adminEmail,
-    password: adminPassword,
-  });
-  if (signIn.status !== 200) {
+  /* ------------------------------------------------- the administrator */
+
+  console.log('The administrator — src/api/auth.ts, src/api/company.ts');
+  let adminSession;
+  try {
+    adminSession = await login(anonymous(), adminEmail, adminPassword);
+  } catch {
     console.error(
-      `Could not sign in as ${adminEmail}. Bootstrap an administrator first, ` +
+      `Could not sign in as ${adminEmail}. Bootstrap the company first, ` +
         `or set ADMIN_EMAIL and ADMIN_PASSWORD.\n`
     );
     process.exit(1);
   }
-  const adminToken = signIn.body.accessToken as string;
+  check('the administrator signs in', adminSession.user.role === 'company', adminSession.user.role);
+  const adminApi = clientFor(adminSession);
+  const adminToken = adminSession.accessToken;
 
-  // A tenant of its own, so a repeated run does not collide with a real one.
+  const company = await fetchCompany(adminApi);
+  check('the company is named', company.name.length > 0, company.name);
+  check('the overview is counted by the server', company.overview.people.total >= 1,
+    `${company.overview.people.total} people, ${company.overview.batteries.total} packs`);
+
+  // Everything this run creates carries a stamp, so a repeated run does not
+  // collide with the last one or with real data.
   const stamp = Date.now().toString(36);
-  const company = await admin('POST', '/companies', adminToken, {
-    name: `Live check ${stamp}`,
-    seatLimit: 5,
-    batteryLimit: 5,
-  });
-  const companyId = company.body.companyId as string;
 
   const techEmail = `live-${stamp}@check.example`;
-  const techPassword = 'a-live-check-passphrase';
-  await admin('POST', '/users', adminToken, {
-    companyId,
+  const invited = await invitePerson(adminApi, {
     email: techEmail,
     displayName: 'Live Check',
     role: 'user',
-    password: techPassword,
+    permissions: { write: true },
   });
+  check('a technician is invited, not given a password', !!invited.invitation?.token, invited.id.slice(0, 8));
 
-  // A company-owner account as well as the technician: the concurrent-device
-  // cap applies to the owner login, which is the one likely to be shared.
-  const ownerEmail = `owner-${stamp}@check.example`;
-  const ownerPassword = 'a-live-check-owner-passphrase';
-  await admin('POST', '/users', adminToken, {
-    companyId,
-    email: ownerEmail,
-    displayName: 'Live Check Owner',
-    role: 'company',
-    password: ownerPassword,
-  });
+  const techPassword = 'a-live-check-passphrase';
+  const accepted = await acceptInvitation(anonymous(), invited.invitation!.token, techPassword);
+  check('the invitation signs them straight in', accepted.user.email === techEmail, accepted.user.email);
+  check('the link works once', await acceptInvitation(anonymous(), invited.invitation!.token, techPassword)
+    .then(() => false).catch(() => true), 'second use refused');
 
-  const battery = await admin('POST', '/batteries', adminToken, {
-    companyId,
+  const { batteryId } = await addPack(adminApi, {
     serial: `LIVE-${stamp}`,
     chemistry: 'LiFePO4',
     cellCount: 24,
     bmsModel: profile.bmsModel,
   });
-  const batteryId = battery.body.batteryId as string;
+  check('a pack is registered', !!batteryId, batteryId.slice(0, 8));
+
+  const fleet = await listFleet(adminApi);
+  check('the fleet lists it', fleet.some((b) => b.id === batteryId), `${fleet.length} packs`);
+
+  const gateway = await registerGateway(adminApi, {
+    serial: `GW-${stamp}`,
+    hardwareRevision: 'HW 1.0',
+    firmwareVersion: 'FW 1.2.4',
+    assignedBatteryId: batteryId,
+  });
+  await setGatewaySecurity(adminApi, gateway.id, 'quarantined');
+  const gateways = await listGateways(adminApi);
+  check('a gateway is registered and quarantined',
+    gateways.find((g) => g.id === gateway.id)?.security_status === 'quarantined', 'quarantined');
+  await setGatewaySecurity(adminApi, gateway.id, 'valid');
 
   /* ------------------------------------------------------------- sign in */
 
-  console.log('Signing in — src/api/auth.ts');
-  const bootstrapClient = new ApiClient({
-    baseUrl: API,
-    getTokens: () => null,
-    onTokens: () => undefined,
-    onSignedOut: () => undefined,
-  });
-
-  const session = await login(bootstrapClient, techEmail, techPassword);
+  console.log('\nSigning in — src/api/auth.ts');
+  const session = await login(anonymous(), techEmail, techPassword);
   check('login returns a usable session', !!session.accessToken, session.user.email);
-  check(
-    'login names the tenant',
-    session.company?.name === `Live check ${stamp}`,
-    session.company?.name ?? 'none'
-  );
-
-  /*
-   * The concurrent-device cap, through the real client rather than curl. The
-   * owner account is limited to two signed-in devices; a third signs out the
-   * one used longest ago, and says which.
-   *
-   * A technician is deliberately not capped — they hold their own seat — so
-   * both halves are checked here. Getting this backwards would sign a field
-   * user out of their tablet every time they picked up their phone.
-   */
-  console.log('\nDevice cap — src/api/auth.ts');
-  const ownerSignIn = (label: string) =>
-    login(
-      new ApiClient({
-        baseUrl: API,
-        getTokens: () => null,
-        onTokens: () => undefined,
-        onSignedOut: () => undefined,
-        // Through the existing fetch seam rather than a headers option on the
-        // client: a real phone sends its own User-Agent, and widening the
-        // production client's surface for a check would be the wrong trade.
-        fetchImpl: ((url: string, init: RequestInit = {}) =>
-          fetch(url, {
-            ...init,
-            headers: { ...(init.headers as Record<string, string>), 'user-agent': label },
-          })) as unknown as typeof fetch,
-      }),
-      ownerEmail,
-      ownerPassword
-    );
-
-  const onPhone = await ownerSignIn('Mozilla/5.0 (iPhone) Safari/604.1');
-  check('the owner signs in on a first device', (onPhone.signedOut ?? []).length === 0,
-    `signed out ${(onPhone.signedOut ?? []).length}`);
-
-  const onMac = await ownerSignIn('Mozilla/5.0 (Macintosh) Chrome/120 Safari/537');
-  check('a second device is allowed', (onMac.signedOut ?? []).length === 0,
-    `signed out ${(onMac.signedOut ?? []).length}`);
-
-  const onWindows = await ownerSignIn('Mozilla/5.0 (Windows NT 10.0) Firefox/121.0');
-  check('a third signs out the least recently used', (onWindows.signedOut ?? []).length === 1,
-    onWindows.signedOut?.[0] ?? 'nothing');
-  check('and says which device it was',
-    (onWindows.signedOut?.[0] ?? '').includes('iPhone'), onWindows.signedOut?.[0] ?? 'nothing');
-
-  const techAgain = await login(
-    new ApiClient({
-      baseUrl: API,
-      getTokens: () => null,
-      onTokens: () => undefined,
-      onSignedOut: () => undefined,
-    }),
-    techEmail,
-    techPassword
-  );
-  check('a field user is not capped', (techAgain.signedOut ?? []).length === 0,
-    `signed out ${(techAgain.signedOut ?? []).length}`);
+  check('login names the company', session.company?.name === company.name, session.company?.name ?? 'none');
+  check('the technician is a technician', session.user.role === 'user', session.user.role);
 
   const api = clientFor({
     accessToken: session.accessToken,
@@ -229,14 +190,12 @@ async function main() {
   /* ------------------------------------------------------------ presence */
 
   console.log('\nPresence — src/api/presence.ts');
-  const before = await admin('GET', `/batteries/${batteryId}/session`, adminToken);
-  check('nobody is on site to begin with', before.body.active === false, 'active: false');
+  check('nobody is on site to begin with', (await isSomeoneOnSite(adminApi, batteryId)) === false, 'active: false');
 
   const presence = await announcePresence(api, batteryId);
   check('announcing presence opens a session', presence !== null, presence?.sessionId.slice(0, 8) ?? 'failed');
 
-  const during = await admin('GET', `/batteries/${batteryId}/session`, adminToken);
-  check('the console can see the technician', during.body.active === true, 'active: true');
+  check('the administrator can see the technician', (await isSomeoneOnSite(adminApi, batteryId)) === true, 'active: true');
 
   /* ------------------------------------------------------------ telemetry */
 
@@ -288,7 +247,7 @@ async function main() {
   // The property that matters is not a counter — it is that the episode is
   // findable in the stored history at all. A thinning that dropped it would
   // leave a record reading as calm on both sides of an over-temperature.
-  const stored = await admin('GET', `/batteries/${batteryId}/telemetry?limit=500`, adminToken);
+  const stored = await raw('GET', `/batteries/${batteryId}/telemetry?limit=500`, adminToken);
   const readings = (stored.body.readings as { recorded_at: number; fault_count: number }[]).sort(
     (a, b) => a.recorded_at - b.recorded_at
   );
@@ -345,19 +304,18 @@ async function main() {
 
   /* ------------------------------------------------------- remote control */
 
-  console.log('\nAssisted remote control — src/api/commands.ts');
-  const support = await admin('POST', '/support-sessions', adminToken, { batteryId });
-  const supportId = support.body.supportSessionId as string;
+  console.log('\nAssisted remote control — src/api/support.ts, src/api/commands.ts');
+  const supportId = await openSession(adminApi, batteryId);
 
-  const issued = await admin('POST', `/support-sessions/${supportId}/commands`, adminToken, {
+  const issued = await issueCommand(adminApi, supportId, {
     parameterKey: 'cell_ovp',
     value: 3.78,
     reason: 'Live check',
   });
   check(
-    'the console can issue a change to a technician on site',
-    issued.body.disposition === 'deliverable',
-    issued.body.disposition
+    'the administrator can issue a change to a technician on site',
+    issued.disposition === 'deliverable',
+    issued.disposition
   );
 
   const claimed = await claimCommands(api, batteryId);
@@ -371,18 +329,30 @@ async function main() {
   const again = await claimCommands(api, batteryId);
   check('nothing is handed over twice', again.length === 0, `${again.length} left`);
 
-  const trail = await admin('GET', `/audit?batteryId=${batteryId}`, adminToken);
-  const remote = (trail.body.events as { source: string; result: string }[]).filter(
-    (e) => e.source === 'admin_remote' && e.result === 'success'
-  );
+  const trail = await listLedger(adminApi, { batteryId });
+  const remote = trail.filter((e) => e.source === 'admin_remote' && e.result === 'success');
   check('the ledger attributes it to the administrator', remote.length === 1, `${remote.length} event`);
+  check('the ledger holds the on-site writes too', trail.filter((e) => e.source === 'local').length === 2,
+    `${trail.filter((e) => e.source === 'local').length} local`);
+
+  const cancelled = await closeSession(adminApi, supportId, 'Live check finished');
+  check('closing the session leaves nothing queued', cancelled === 0, `${cancelled} cancelled`);
 
   /* --------------------------------------------------------------- ending */
 
   console.log('\nEnding the link — src/api/presence.ts');
   await endPresence(api, batteryId);
-  const after = await admin('GET', `/batteries/${batteryId}/session`, adminToken);
-  check('the console sees the technician leave', after.body.active === false, 'active: false');
+  check('the administrator sees the technician leave', (await isSomeoneOnSite(adminApi, batteryId)) === false, 'active: false');
+
+  /* ------------------------------------------------------------- tidying */
+
+  console.log('\nRemoving the technician — src/api/company.ts');
+  const removal = await removePerson(adminApi, invited.id);
+  // They have written to the ledger, so the account is kept as a record.
+  check('a person with history is suspended rather than deleted', removal.removed === false && removal.reason === 'has_history',
+    removal.removed ? 'deleted' : (removal.reason ?? 'suspended'));
+  check('and can no longer sign in', await login(anonymous(), techEmail, techPassword).then(() => false).catch(() => true),
+    'refused');
 
   const failed = results.filter((r) => !r.ok);
   console.log(

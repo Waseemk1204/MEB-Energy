@@ -17,7 +17,6 @@ import {
 } from '../../src/ui/primitives';
 import { PassiveChangeBanner } from '../../src/ui/PassiveChangeBanner';
 import { StaleBanner } from '../../src/ui/StaleBanner';
-import { SignedOutBanner } from '../../src/ui/SignedOutBanner';
 import { useFreshness } from '../../src/telemetry/freshness';
 import { useActivityStore } from '../../src/store/useActivityStore';
 import { useSessionStore } from '../../src/store/useSessionStore';
@@ -183,7 +182,6 @@ export default function Dashboard() {
 
       {/* Somebody else may have just used this account. Shown after the live
           data warnings, which are about the pack in front of you. */}
-      <SignedOutBanner />
 
       <View style={{ paddingHorizontal: space.gutter }}>
         <SectionLabel>Pack detail</SectionLabel>

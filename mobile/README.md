@@ -1,11 +1,13 @@
-# KnowyourEV — mobile app
+# MEB Energy — the app
 
-Phase 1 field-user app: connect to a battery over BLE, read normalized telemetry,
-and change BMS parameters through a governed safe-write flow.
+The company's application, shipped as an installable web app: technicians
+connect to a battery over BLE, read normalized telemetry and change BMS
+parameters through a governed safe-write flow; administrators look after the
+people, the fleet, the gateways, the ledger and remote support.
 
-Built against **Expo SDK 57** (React Native 0.86.3, React 19.2.3). All 13 screens
-from PRD §10.1 are implemented. The transport is currently simulated — see
-[Seams](#seams).
+Built against **Expo SDK 57** (React Native 0.86.3, React 19.2.3). The web
+target is the shipping one; iOS and Android build from the same source. The
+BLE transport is currently simulated — see [Seams](#seams).
 
 ---
 
@@ -13,15 +15,23 @@ from PRD §10.1 are implemented. The transport is currently simulated — see
 
 ```bash
 npm install
-npm start          # then press i / a / w
+npm run web                 # Metro dev server, in the browser
+npm run build:web           # export the installable app to dist/
+npm run serve:web           # serve dist/ the way a static host would
 ```
 
 | Command | What it does |
 |---|---|
-| `npm start` | Metro dev server |
-| `npm test` | Jest — 244 tests, 19 suites |
+| `npm run web` | Metro dev server on :8081 |
+| `npm run build:web` | `expo export --platform web` → `dist/` (manifest, service worker, icons included) |
+| `npm run serve:web` | static server on :4173 with the single-page fallback the router needs |
+| `npm test` | Jest |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | `expo lint` |
+| `npm run live-check` | the app's real modules against a running API |
+
+The API location is `EXPO_PUBLIC_API_URL` at build time; unset, it is the
+Metro host on :3000 in development and `http://localhost:3000` in a build.
 
 All three checks pass clean. Run them before pushing; the first is the only one
 that catches a broken app, and even it has a blind spot (see [Route
@@ -186,7 +196,7 @@ walker for this — a silent false-negative trap otherwise.
 wiring order, but the firmware telemetry contract does not exist yet. When it
 does: connect, authenticate against the gateway's secure element, and **stop the
 flow on auth failure before any read** — the app must never treat an unverified
-peripheral as a KnowyourEV device.
+peripheral as a company gateway.
 
 **The auth token is a placeholder.** `signIn` mints `local-<timestamp>` because
 there is no auth service. The storage shape, expiry check and fail-closed paths
