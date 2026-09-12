@@ -186,7 +186,7 @@ every browser until the CORS allowlist named the verb.
 ### Checking the tests themselves
 
 ```bash
-node mutants.mjs            # all 78 rules
+node mutants.mjs            # all 79 rules
 node mutants.mjs mobile     # one package
 node mutants.mjs "PIN"      # by name
 ```

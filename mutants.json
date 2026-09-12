@@ -622,5 +622,13 @@
     "file": "app/accept-invite.tsx",
     "from": "      await store.adopt(result);",
     "to": ""
+  },
+  {
+    "name": "the battery list has no way to sign out",
+    "why": "A technician at a company with no packs yet would have no way out but the browser's storage settings.",
+    "package": "mobile",
+    "file": "app/batteries.tsx",
+    "from": "      onPress: () => signOut(),",
+    "to": "      onPress: () => undefined,"
   }
 ]

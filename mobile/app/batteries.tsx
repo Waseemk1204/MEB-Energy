@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChevronRight } from 'lucide-react-native';
+import { Building2, ChevronRight, Download, LifeBuoy, LogOut, Menu } from 'lucide-react-native';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { APP_NAME } from '../src/brand';
 import { space } from '../src/theme/tokens';
@@ -10,6 +10,8 @@ import { Gauge } from '../src/gauge/Gauge';
 import { LeatherPanel } from '../src/ui/LeatherPanel';
 import { SectionLabel, StatusChip } from '../src/ui/primitives';
 import { StepList } from '../src/ui/StepList';
+import { SideMenu, type MenuItem } from '../src/ui/SideMenu';
+import { useInstallPrompt } from '../src/pwa/install';
 import { useTelemetryStore } from '../src/store/useTelemetryStore';
 import { CONNECT_STEPS, stepComplete, useSessionStore } from '../src/store/useSessionStore';
 import { describeReading, useFleetStore } from '../src/store/useFleetStore';
@@ -34,6 +36,11 @@ export default function Batteries() {
   const stage = useSessionStore((s) => s.stage);
   const connectingId = useSessionStore((s) => s.connectingBatteryId);
   const connectedId = useSessionStore((s) => s.connectedBatteryId);
+  const role = useSessionStore((s) => s.role);
+  const operator = useSessionStore((s) => s.operator);
+  const signOut = useSessionStore((s) => s.signOut);
+  const install = useInstallPrompt();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const fleet = useFleetStore.getState();
@@ -50,16 +57,71 @@ export default function Batteries() {
     if (ok) router.replace('/(tabs)');
   };
 
+  /*
+   * The only screen a technician has before a pack is linked, so it is the
+   * only place they can sign out, get help, or install the app from until
+   * then. Without this a technician at a company with no packs yet -- or one
+   * whose packs are all out of range -- has no way out but the browser's
+   * storage settings.
+   */
+  const menu: MenuItem[] = [
+    ...(role === 'company'
+      ? [
+          {
+            label: 'Your company',
+            hint: 'People, fleet, gateways, the ledger',
+            icon: <Building2 size={18} color={p.accent} strokeWidth={2.2} />,
+            onPress: () => router.replace('/company'),
+          },
+        ]
+      : []),
+    {
+      label: 'Help & safety',
+      icon: <LifeBuoy size={18} color={p.accent} strokeWidth={2.2} />,
+      onPress: () => router.push('/help'),
+    },
+    ...(install.kind === 'promptable'
+      ? [
+          {
+            label: 'Install on this device',
+            hint: 'Opens from the home screen, with or without signal',
+            icon: <Download size={18} color={p.accent} strokeWidth={2.2} />,
+            onPress: () => void install.install(),
+          },
+        ]
+      : install.kind === 'manual'
+        ? [{ label: 'Install on this device', hint: install.hint, onPress: () => undefined }]
+        : []),
+    {
+      label: 'Sign out',
+      hint: operator ?? undefined,
+      icon: <LogOut size={18} color={p.critical} strokeWidth={2.2} />,
+      onPress: () => signOut(),
+    },
+  ];
+
   return (
     <View style={{ flex: 1, backgroundColor: p.panelBase }}>
       <LeatherPanel tone="hero" radius={0} style={{ paddingTop: topInset + 8, paddingBottom: 20 }}>
-        <View style={styles.head}>
-          <Text style={[T.wordmark, { color: p.leatherInk, fontSize: 25 }]}>{APP_NAME}</Text>
-          <Text style={[T.screenSub, { color: p.leatherInkSoft, marginTop: 6 }]}>
-            {company} · {batteries.length} {batteries.length === 1 ? 'battery' : 'batteries'}
-          </Text>
+        <View style={[styles.head, styles.headRow]}>
+          <View style={{ flexShrink: 1 }}>
+            <Text style={[T.wordmark, { color: p.leatherInk, fontSize: 25 }]}>{APP_NAME}</Text>
+            <Text style={[T.screenSub, { color: p.leatherInkSoft, marginTop: 6 }]}>
+              {company} · {batteries.length} {batteries.length === 1 ? 'battery' : 'batteries'}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => setMenuOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Open menu"
+            hitSlop={10}
+            style={styles.menuButton}
+          >
+            <Menu size={20} color={p.leatherInk} strokeWidth={2.3} />
+          </Pressable>
         </View>
       </LeatherPanel>
+
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: space.gutter, paddingBottom: bottomInset + 28 }}
@@ -185,12 +247,23 @@ export default function Batteries() {
           authenticates the gateway and detects the BMS before any telemetry is shown.
         </Text>
       </ScrollView>
+
+      {/* Last, so it paints over the list rather than under the cards. */}
+      <SideMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        title={company || APP_NAME}
+        sub={operator ?? undefined}
+        items={menu}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   head: { paddingHorizontal: 22, paddingTop: 12 },
+  headRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  menuButton: { minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
   // Tall in practice; declared so the 44pt guarantee is verifiable.
   card: { paddingHorizontal: 16, paddingVertical: 16, marginBottom: 10, minHeight: 44 },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 
 const mockReplace = jest.fn();
 
@@ -16,8 +16,12 @@ import { useFleetStore, type FleetBattery } from '../src/store/useFleetStore';
 const wrap = () => render(<ThemeProvider><Batteries /></ThemeProvider>);
 type Queries = Awaited<ReturnType<typeof wrap>>;
 
+// The battery rows: every button that is not the header's menu control.
 const rowLabels = (q: Queries) =>
-  q.getAllByRole('button').map((b) => String(b.props.accessibilityLabel ?? ''));
+  q
+    .getAllByRole('button')
+    .map((b) => String(b.props.accessibilityLabel ?? ''))
+    .filter((label) => label !== 'Open menu');
 
 const rowFor = (q: Queries, id: string) =>
   q.getAllByRole('button').find((b) => String(b.props.accessibilityLabel ?? '').startsWith(id))!;
@@ -246,5 +250,36 @@ describe('the connect sequence', () => {
     useSessionStore.setState({ connectingBatteryId: 'BAT-00051', stage: 'connecting' });
     const q = await wrap();
     expect(rowFor(q, 'BAT-00043').props.accessibilityState).toMatchObject({ disabled: true });
+  });
+});
+
+/**
+ * The only screen a technician has before a pack is linked, so it is the
+ * only place they can sign out or get help until then. A technician at a
+ * company with no packs yet must not be stuck.
+ */
+describe('the menu', () => {
+  it('offers sign-out and help to a technician', async () => {
+    useSessionStore.setState({ role: 'user', operator: 'W Khan' });
+    const q = await wrap();
+    await fireEvent.press(q.getByLabelText('Open menu'));
+    expect(q.getByText('Sign out')).toBeTruthy();
+    expect(q.getByText('Help & safety')).toBeTruthy();
+    expect(q.queryByText('Your company')).toBeNull();
+  });
+
+  it('offers an administrator the way back to the company surface', async () => {
+    useSessionStore.setState({ role: 'company' });
+    const q = await wrap();
+    await fireEvent.press(q.getByLabelText('Open menu'));
+    expect(q.getByText('Your company')).toBeTruthy();
+  });
+
+  it('actually signs out', async () => {
+    useSessionStore.setState({ role: 'user', authenticated: true });
+    const q = await wrap();
+    await fireEvent.press(q.getByLabelText('Open menu'));
+    await fireEvent.press(q.getByText('Sign out'));
+    expect(useSessionStore.getState().authenticated).toBe(false);
   });
 });
