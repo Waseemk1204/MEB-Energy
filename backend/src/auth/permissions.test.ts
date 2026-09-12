@@ -22,10 +22,10 @@ const NOW = 1_700_000_000_000;
 const ACME = 'c-acme';
 
 const tech: Principal = { userId: 'u-tech', role: 'user', companyId: ACME };
-const owner: Principal = { userId: 'u-owner', role: 'company', companyId: ACME };
-const admin: Principal = { userId: 'u-admin', role: 'admin', companyId: null };
+const tech2: Principal = { userId: 'u-tech2', role: 'user', companyId: ACME };
+const admin: Principal = { userId: 'u-admin', role: 'company', companyId: ACME };
 
-const insert = (id: string, role: string, company: string | null, status = 'active') =>
+const insert = (id: string, role: string, company: string, status = 'active') =>
   store.run(
     'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
     id, company, `${id}@acme.example`, id, role, 'x', status, NOW
@@ -42,10 +42,10 @@ const codeOf = (fn: () => unknown): string | null => {
 
 beforeEach(() => {
   store = createStore();
-  seedCompany(store, ACME, 'Acme EV', {}, NOW);
+  seedCompany(store, ACME, 'Acme EV', NOW);
   insert('u-tech', 'user', ACME);
-  insert('u-owner', 'company', ACME);
-  insert('u-admin', 'admin', null);
+  insert('u-tech2', 'user', ACME);
+  insert('u-admin', 'company', ACME);
 });
 
 afterEach(() => store.close());
@@ -79,11 +79,11 @@ describe('what a new account may do', () => {
   });
 });
 
-describe('a platform administrator', () => {
+describe('the company administrator', () => {
   /**
-   * An administrator sits outside every company, so there is no company owner
-   * who could grant or remove anything from them. A flag would have nobody to
-   * set it.
+   * An administrator is the one who grants and removes permissions, and nobody
+   * sits above them to do the same for them. A flag would have nobody to set
+   * it.
    */
   it('holds every permission without carrying columns', () => {
     assert.deepEqual(permissionsOf(store, admin), {
@@ -123,7 +123,7 @@ describe('changing what somebody may do', () => {
 
   it('changes only the user named', () => {
     setPermissions(store, 'u-tech', { write: true });
-    assert.equal(permissionsOf(store, owner).write, false);
+    assert.equal(permissionsOf(store, tech2).write, false);
   });
 });
 

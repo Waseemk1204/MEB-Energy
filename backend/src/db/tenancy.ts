@@ -3,22 +3,36 @@ import type { Param } from './client.js';
 /**
  * Tenant scoping you cannot forget.
  *
- * Tenant data is only reachable through {@link tenantQuery}, which always emits
- * the company clause. The platform-wide escape hatch exists — an Admin needs it
- * — but it is separately named, so any cross-tenant query is visible as such in
- * a diff and findable with a grep.
+ * Every row of operational data carries a `company_id`, and every query that
+ * reads it goes through {@link tenantQuery}, which always emits the company
+ * clause. The application serves one company, so in practice every row
+ * belongs to it — but the clause stays, because the day a second database is
+ * merged in or a stale row survives, a query that forgot its scope is the
+ * kind of bug nobody notices until somebody else's battery appears in a list.
  *
  * PRD §5.2: permissions are enforced server-side. UI hiding is never the
  * boundary, and neither is a developer remembering to add a WHERE clause.
  */
 
-export type Role = 'admin' | 'company' | 'user';
+/**
+ * Who somebody is inside the company.
+ *
+ * `company` is the company's administrator: they look after the fleet and the
+ * people, open remote-support sessions and hold every permission implicitly.
+ * `user` is a technician, whose permissions the administrator sets.
+ */
+export type Role = 'company' | 'user';
+
+export const ROLES: readonly Role[] = ['company', 'user'];
+
+export const isRole = (value: unknown): value is Role =>
+  typeof value === 'string' && (ROLES as readonly string[]).includes(value);
 
 export interface Principal {
   userId: string;
   role: Role;
-  /** Null only for platform admins. */
-  companyId: string | null;
+  /** Every principal belongs to the company. */
+  companyId: string;
 }
 
 export class TenantScopeError extends Error {
@@ -34,7 +48,6 @@ export const TENANT_TABLES = [
   'devices',
   'audit_events',
   'users',
-  'subscriptions',
   'ble_sessions',
   'telemetry_readings',
   'commands',
@@ -48,7 +61,7 @@ export interface ScopedQuery {
 }
 
 /**
- * Builds a SELECT that is scoped to the principal's tenant.
+ * Builds a SELECT that is scoped to the principal's company.
  *
  * `columns` and `table` are interpolated because they are code, never input;
  * every value goes through a bound parameter. Extra conditions are appended
@@ -64,22 +77,13 @@ export function tenantQuery(
   const extra = options.where;
   const params: Param[] = [];
 
-  let sql = `SELECT ${columns} FROM ${table}`;
-
-  if (principal.role === 'admin') {
-    // Deliberately unscoped. Reached only through an admin principal, and the
-    // caller had to pass one to get here.
-    if (extra) sql += ` WHERE ${extra}`;
-  } else {
-    if (!principal.companyId) {
-      throw new TenantScopeError(
-        `Principal ${principal.userId} has role '${principal.role}' but no company`
-      );
-    }
-    sql += ` WHERE ${table}.company_id = ?`;
-    params.push(principal.companyId);
-    if (extra) sql += ` AND (${extra})`;
+  if (!principal.companyId) {
+    throw new TenantScopeError(`Principal ${principal.userId} has no company`);
   }
+
+  let sql = `SELECT ${columns} FROM ${table} WHERE ${table}.company_id = ?`;
+  params.push(principal.companyId);
+  if (extra) sql += ` AND (${extra})`;
 
   if (options.params) params.push(...options.params);
   if (options.orderBy) sql += ` ORDER BY ${options.orderBy}`;
@@ -94,18 +98,6 @@ function assertKnownTable(table: string): asserts table is TenantTable {
 }
 
 /**
- * Explicitly cross-tenant. Only an admin may use it, and the name is meant to
- * stand out in review.
- */
-export function platformWide(principal: Principal): void {
-  if (principal.role !== 'admin') {
-    throw new TenantScopeError(
-      `Role '${principal.role}' cannot query platform-wide; scope the query to a company`
-    );
-  }
-}
-
-/**
  * Guards a row fetched by primary key. An id lookup carries no company clause,
  * so ownership is checked after the fact — this is the ID-guessing attack the
  * PRD's build plan calls out, and the check belongs in exactly one place.
@@ -116,7 +108,6 @@ export function assertOwned(
   what: string
 ): asserts row is { company_id: string } {
   if (!row) throw new TenantScopeError(`${what} not found`);
-  if (principal.role === 'admin') return;
   if (row.company_id !== principal.companyId) {
     // Deliberately identical to the not-found message: telling a caller that a
     // resource exists but belongs to someone else is itself a disclosure.
@@ -124,15 +115,12 @@ export function assertOwned(
   }
 }
 
-/** Can this principal manage users in the given company? */
+/** Can this principal manage users, packs and gateways in the given company? */
 export function canManageUsers(principal: Principal, companyId: string): boolean {
-  if (principal.role === 'admin') return true;
-  if (principal.role === 'company') return principal.companyId === companyId;
-  return false;
+  return principal.role === 'company' && principal.companyId === companyId;
 }
 
 /** Can this principal write BMS parameters on batteries in the given company? */
 export function canWriteParameters(principal: Principal, companyId: string): boolean {
-  if (principal.role === 'admin') return true;
   return principal.companyId === companyId;
 }

@@ -31,14 +31,14 @@ beforeEach(async () => {
   const now = Date.now();
   const hash = await hashPassword(PASSWORD, CHEAP);
 
-  seedCompany(store, ACME, 'Acme EV', {}, now);
+  seedCompany(store, ACME, 'Acme EV', now);
   store.run(
     'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
-    'u-admin', null, 'ops@knowyourev.example', 'Ops', 'admin', hash, 'active', now
+    'u-admin', ACME, 'ops@acme.example', 'Ops', 'company', hash, 'active', now
   );
   store.run(
     'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
-    'u-admin-2', null, 'ops2@knowyourev.example', 'Ops Two', 'admin', hash, 'active', now
+    'u-admin-2', ACME, 'ops2@acme.example', 'Ops Two', 'company', hash, 'active', now
   );
 
   app = buildServer({
@@ -56,7 +56,7 @@ const adminToken = async () => {
   const res = await app.inject({
     method: 'POST',
     url: '/auth/login',
-    payload: { email: 'ops@knowyourev.example', password: PASSWORD },
+    payload: { email: 'ops@acme.example', password: PASSWORD },
   });
   return (res.json() as { accessToken: string }).accessToken;
 };

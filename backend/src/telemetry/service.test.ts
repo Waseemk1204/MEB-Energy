@@ -21,7 +21,7 @@ const RIVAL_BATTERY = 'bat-rival';
 
 const acme: Principal = { userId: 'u-acme', role: 'user', companyId: ACME };
 const rival: Principal = { userId: 'u-rival', role: 'user', companyId: RIVAL };
-const admin: Principal = { userId: 'u-admin', role: 'admin', companyId: null };
+const admin: Principal = { userId: 'u-admin', role: 'company', companyId: ACME };
 
 const T0 = 1_800_000_000_000;
 
@@ -54,7 +54,7 @@ beforeEach(() => {
     [ACME, 'Acme EV'],
     [RIVAL, 'Rival Fleet'],
   ] as const) {
-    seedCompany(store, id, name, {}, now);
+    seedCompany(store, id, name, now);
   }
   for (const [id, company, serial] of [
     [ACME_BATTERY, ACME, 'BAT-ACME-1'],
@@ -183,8 +183,9 @@ describe('querying history', () => {
     assert.equal(rowsFor(rival, ACME_BATTERY).length, 0);
   });
 
-  it('lets an admin read across tenants', () => {
-    assert.ok(rowsFor(admin, RIVAL_BATTERY).length > 0);
+  it('shows even an administrator nothing of another company’s battery', () => {
+    assert.equal(rowsFor(admin, RIVAL_BATTERY).length, 0);
+    assert.ok(rowsFor(admin, ACME_BATTERY).length > 0);
   });
 });
 

@@ -1,20 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import type { Store } from '../db/client.js';
-import { canManageUsers, tenantQuery, type Principal, type Role } from '../db/tenancy.js';
+import { canManageUsers, isRole, tenantQuery, type Principal, type Role } from '../db/tenancy.js';
 import { hashPassword } from '../auth/password.js';
 import { NO_PASSWORD, createInvitation } from '../auth/invitations.js';
 import { revokeAllForUser } from '../auth/tokens.js';
-import { DEFAULT_SESSION_DEVICES } from '../auth/sessionDevices.js';
 import { DEFAULT_PERMISSIONS, type PermissionPatch } from '../auth/permissions.js';
-import { DEFAULT_DEVICE_LIMIT } from './entitlement.js';
 
 /**
- * Company, user and device administration (PRD §6.4, §6.5, §7.6, §7.8).
+ * The company, its people, its packs and its gateways (PRD §6.4, §6.5, §7.6,
+ * §7.8).
  *
- * The rules that matter here are the ones that stop a tenant escalating out of
- * its own boundary: who may create whom, in which company, with which role.
- * Every one of them is checked here rather than at the route, so a second
- * caller of these functions cannot skip them.
+ * The rules that matter here are the ones that decide who may change whom:
+ * an administrator manages the company, a technician manages nothing. Every
+ * one of them is checked here rather than at the route, so a second caller of
+ * these functions cannot skip them.
  */
 
 export class AdminError extends Error {
@@ -22,7 +21,6 @@ export class AdminError extends Error {
     message: string,
     readonly code:
       | 'forbidden'
-      | 'device_limit_reached'
       | 'has_history'
       | 'email_taken'
       | 'not_found'
@@ -35,78 +33,98 @@ export class AdminError extends Error {
   }
 }
 
-/* ------------------------------------------------------------- companies */
+/* --------------------------------------------------------------- company */
 
-export interface NewCompany {
+export interface CompanyRow {
+  id: string;
   name: string;
-  seatLimit: number;
-  deviceLimit?: number | null;
-  sessionDeviceLimit?: number;
-  batteryLimit?: number | null;
-  /** Yearly only; the PRD offers no monthly plan. */
-  renewalDate?: number;
+  created_at: number;
 }
 
-export function createCompany(
-  store: Store,
-  principal: Principal,
-  input: NewCompany,
-  now = Date.now()
-): { companyId: string; subscriptionId: string } {
-  // Only the platform creates tenants. A company creating a company would be a
-  // tenant escaping its own boundary.
-  if (principal.role !== 'admin') {
-    throw new AdminError('Only an administrator may create a company', 'forbidden');
+/** The company this principal belongs to. */
+export function companyOf(store: Store, principal: Principal): CompanyRow {
+  const row = store.get<CompanyRow>(
+    'SELECT id, name, created_at FROM companies WHERE id = ?',
+    principal.companyId
+  );
+  if (!row) throw new AdminError('Company not found', 'not_found');
+  return row;
+}
+
+/**
+ * Rename the company. The name is the one thing about the company that is
+ * the company's own to decide; it appears in every header and every invitation.
+ */
+export function renameCompany(store: Store, principal: Principal, name: string): CompanyRow {
+  if (!canManageUsers(principal, principal.companyId)) {
+    throw new AdminError('Only an administrator may rename the company', 'forbidden');
   }
+  const trimmed = name.trim();
+  store.run('UPDATE companies SET name = ? WHERE id = ?', trimmed, principal.companyId);
+  return companyOf(store, principal);
+}
 
-  const companyId = randomUUID();
-  const subscriptionId = randomUUID();
-  const renewalDate = input.renewalDate ?? now + 365 * 24 * 60 * 60 * 1000;
+export interface CompanyOverview {
+  people: { total: number; active: number; invited: number; administrators: number };
+  batteries: { total: number; inService: number; reportingWithin24Hours: number };
+  gateways: { total: number; inService: number };
+}
 
-  store.transaction(() => {
-    store.run(
-      'INSERT INTO companies (id, name, status, created_at) VALUES (?,?,?,?)',
-      companyId,
-      input.name,
-      'active',
-      now
-    );
-    store.run(
-      `INSERT INTO subscriptions
-       (id, company_id, plan_type, start_date, renewal_date, seat_limit, device_limit,
-        session_device_limit, battery_limit, status, created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      subscriptionId,
-      companyId,
-      'yearly',
-      now,
-      renewalDate,
-      input.seatLimit,
-      // Undefined means "not asked" and takes the same default granting access
-      // does; an explicit null is an administrator saying "no limit" and is
-      // kept. Without this a company created from the console had no gateway
-      // cap at all while its plan claimed one.
-      input.deviceLimit === undefined ? DEFAULT_DEVICE_LIMIT : input.deviceLimit,
-      input.sessionDeviceLimit ?? DEFAULT_SESSION_DEVICES,
-      input.batteryLimit ?? null,
-      'active',
-      now
-    );
-  });
+/**
+ * The numbers an administrator opens the app to see.
+ *
+ * Counted in SQL rather than by listing and measuring in JavaScript: a fleet
+ * that has grown past a page would otherwise report the size of the page.
+ */
+export function companyOverview(store: Store, companyId: string, now = Date.now()): CompanyOverview {
+  const count = (sql: string, ...params: (string | number)[]): number =>
+    store.get<{ n: number }>(sql, ...params)?.n ?? 0;
 
-  return { companyId, subscriptionId };
+  return {
+    people: {
+      total: count('SELECT COUNT(*) AS n FROM users WHERE company_id = ?', companyId),
+      active: count("SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND status = 'active'", companyId),
+      invited: count("SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND status = 'invited'", companyId),
+      administrators: count(
+        "SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND role = 'company' AND status = 'active'",
+        companyId
+      ),
+    },
+    batteries: {
+      total: count('SELECT COUNT(*) AS n FROM batteries WHERE company_id = ?', companyId),
+      inService: count(
+        "SELECT COUNT(*) AS n FROM batteries WHERE company_id = ? AND status = 'active'",
+        companyId
+      ),
+      // "Connected" is not a state a pack holds; it is a recent reading.
+      reportingWithin24Hours: count(
+        `SELECT COUNT(DISTINCT battery_id) AS n FROM telemetry_readings
+         WHERE company_id = ? AND recorded_at > ?`,
+        companyId,
+        now - 24 * 60 * 60 * 1000
+      ),
+    },
+    gateways: {
+      total: count('SELECT COUNT(*) AS n FROM devices WHERE company_id = ?', companyId),
+      inService: count(
+        "SELECT COUNT(*) AS n FROM devices WHERE company_id = ? AND security_status = 'valid'",
+        companyId
+      ),
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ users */
 
 export interface NewUser {
-  companyId: string | null;
+  companyId: string;
   email: string;
   displayName: string;
   role: Role;
   /**
    * What this person may do. Anything omitted takes the default: they can
-   * read, see location and see health, and they cannot write.
+   * read, see location and see health, and they cannot write. Ignored for an
+   * administrator, who holds every permission implicitly.
    */
   permissions?: PermissionPatch;
   /**
@@ -126,57 +144,25 @@ export interface CreatedUser {
   invitation?: { token: string; expiresAt: number };
 }
 
-interface SeatUsage {
-  used: number;
-  limit: number | null;
-}
-
-/** Only active users consume a seat; a suspended account frees one. */
-export function seatUsage(store: Store, companyId: string): SeatUsage {
-  const used = store.get<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND status = 'active'",
-    companyId
-  );
-  const subscription = store.get<{ seat_limit: number }>(
-    "SELECT seat_limit FROM subscriptions WHERE company_id = ? AND status = 'active'",
-    companyId
-  );
-  return { used: used?.n ?? 0, limit: subscription?.seat_limit ?? null };
-}
-
 export async function createUser(
   store: Store,
   principal: Principal,
   input: NewUser,
   now = Date.now()
 ): Promise<CreatedUser> {
-  // An admin is platform-wide and tenantless; everyone else belongs to exactly
-  // one company. The schema enforces this too, but failing here gives a usable
-  // message rather than a constraint violation.
-  if (input.role === 'admin') {
-    if (principal.role !== 'admin') {
-      throw new AdminError('Only an administrator may create administrators', 'forbidden');
-    }
-    if (input.companyId !== null) {
-      throw new AdminError('An administrator cannot belong to a company', 'invalid_role');
-    }
-  } else {
-    if (!input.companyId) {
-      throw new AdminError(`Role '${input.role}' must belong to a company`, 'invalid_role');
-    }
-    // A company principal may create users only inside its own tenant.
-    if (!canManageUsers(principal, input.companyId)) {
-      throw new AdminError('Not permitted to create users in that company', 'forbidden');
-    }
+  if (!isRole(input.role)) {
+    throw new AdminError(`'${String(input.role)}' is not a role`, 'invalid_role');
+  }
+  if (!input.companyId) {
+    throw new AdminError(`Role '${input.role}' must belong to the company`, 'invalid_role');
+  }
+  // Only an administrator creates accounts, and only inside their own company.
+  if (!canManageUsers(principal, input.companyId)) {
+    throw new AdminError('Not permitted to create users in that company', 'forbidden');
   }
 
-  /*
-   * There is no seat cap. What a company pays is settled outside the product,
-   * so the only commercial control left is whether their access is on at all.
-   * `seatUsage` survives as a count for the admin dashboard -- a number to
-   * look at, not a rule to trip over.
-   */
-
+  // There is no seat cap. How many people a company has is the company's own
+  // business.
   const perms = { ...DEFAULT_PERMISSIONS, ...(input.permissions ?? {}) };
 
   const email = input.email.trim().toLowerCase();
@@ -224,7 +210,7 @@ export async function createUser(
 
 interface UserRow {
   id: string;
-  company_id: string | null;
+  company_id: string;
   email: string;
   display_name: string;
   role: Role;
@@ -233,34 +219,75 @@ interface UserRow {
 }
 
 /**
- * The users this principal can see, optionally narrowed to one company.
- *
- * The filter is applied on top of the tenant scope, never instead of it: a
- * company principal asking for another company's id gets their own rows and
- * not an error, because the scope clause is still in the query. Only an
- * administrator can use it to actually see somewhere else.
+ * The users this principal can see.
  *
  * Permissions come back with the row. The screen that lists people is the
  * screen that shows what they may do, and a second round trip per user to find
  * out would make a list of twenty into twenty-one requests.
  */
-export function listUsers(
-  store: Store,
-  principal: Principal,
-  filter: { companyId?: string } = {}
-): UserRow[] {
-  const scoped = filter.companyId
-    ? { where: 'company_id = ?', params: [filter.companyId] }
-    : {};
-
+export function listUsers(store: Store, principal: Principal): UserRow[] {
   const q = tenantQuery(principal, 'users', {
     columns:
-      'id, company_id, email, display_name, role, status, ' +
+      'id, company_id, email, display_name, role, status, created_at, ' +
       'can_read, can_write, can_location, can_health',
     orderBy: 'email ASC',
-    ...scoped,
   });
   return store.all<UserRow>(q.sql, ...q.params);
+}
+
+/**
+ * The user this principal is allowed to act on, or null.
+ *
+ * One rule, used by everything that reaches for somebody else's account. Only
+ * an administrator manages people, and only inside their company — "not
+ * yours" and "not there" are the same answer on purpose, so the endpoint
+ * cannot be used to discover who exists.
+ */
+export function visibleUser(store: Store, principal: Principal, userId: string): UserRow | null {
+  const target = store.get<UserRow>(
+    'SELECT id, company_id, email, display_name, role, status, password_hash FROM users WHERE id = ?',
+    userId
+  );
+  if (!target) return null;
+  return canManageUsers(principal, target.company_id) ? target : null;
+}
+
+export interface UserPatch {
+  displayName?: string;
+  email?: string;
+}
+
+/** Edit who somebody is. What they may do is `setPermissions`. */
+export function updateUser(
+  store: Store,
+  principal: Principal,
+  userId: string,
+  patch: UserPatch
+): void {
+  const target = visibleUser(store, principal, userId);
+  if (!target) throw new AdminError('User not found', 'not_found');
+
+  const sets: string[] = [];
+  const params: string[] = [];
+
+  if (patch.displayName !== undefined) {
+    sets.push('display_name = ?');
+    params.push(patch.displayName.trim());
+  }
+  if (patch.email !== undefined) {
+    const email = patch.email.trim().toLowerCase();
+    const clash = store.get<{ id: string }>(
+      'SELECT id FROM users WHERE email = ? AND id <> ?',
+      email,
+      userId
+    );
+    if (clash) throw new AdminError('That email address is already in use', 'email_taken');
+    sets.push('email = ?');
+    params.push(email);
+  }
+  if (sets.length === 0) return;
+
+  store.run(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, ...params, userId);
 }
 
 /**
@@ -270,25 +297,6 @@ export function listUsers(
  * expires — up to a fortnight of access after being told they no longer have
  * any. Deactivation has to mean it immediately.
  */
-/**
- * The user this principal is allowed to act on, or null.
- *
- * One rule, used by everything that reaches for somebody else's account. A
- * company principal sees only its own tenant, and platform administrators are
- * invisible to them entirely — "not yours" and "not there" are the same answer
- * on purpose, so the endpoint cannot be used to discover who exists.
- */
-export function visibleUser(store: Store, principal: Principal, userId: string): UserRow | null {
-  const target = store.get<UserRow>(
-    'SELECT id, company_id, role, status, password_hash FROM users WHERE id = ?',
-    userId
-  );
-  if (!target) return null;
-
-  if (target.role === 'admin') return principal.role === 'admin' ? target : null;
-  return canManageUsers(principal, target.company_id ?? '') ? target : null;
-}
-
 export function setUserStatus(
   store: Store,
   principal: Principal,
@@ -310,17 +318,17 @@ export function setUserStatus(
     );
   }
 
-  if (target.role === 'admin') {
-    if (status === 'suspended') {
-      const others = store.get<{ n: number }>(
-        "SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND status = 'active' AND id <> ?",
-        userId
-      );
-      // Locking every administrator out of the platform is not a state anyone
-      // can recover from through the product.
-      if ((others?.n ?? 0) === 0) {
-        throw new AdminError('Cannot suspend the last active administrator', 'last_admin');
-      }
+  if (target.role === 'company' && status === 'suspended') {
+    const others = store.get<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM users
+       WHERE company_id = ? AND role = 'company' AND status = 'active' AND id <> ?`,
+      target.company_id,
+      userId
+    );
+    // Locking every administrator out of the company is not a state anyone
+    // can recover from through the product.
+    if ((others?.n ?? 0) === 0) {
+      throw new AdminError('Cannot suspend the last active administrator', 'last_admin');
     }
   }
 
@@ -346,22 +354,11 @@ export function removeUser(
   userId: string,
   now = Date.now()
 ): { removed: boolean; reason?: 'has_history' } {
-  const target = store.get<UserRow>(
-    'SELECT id, company_id, role, status FROM users WHERE id = ?',
-    userId
-  );
+  const target = visibleUser(store, principal, userId);
   if (!target) throw new AdminError('User not found', 'not_found');
 
   if (target.id === principal.userId) {
     throw new AdminError('You cannot remove your own account', 'forbidden');
-  }
-  if (target.role === 'admin') {
-    // Platform administrators are not a tenant's to delete.
-    if (principal.role !== 'admin') throw new AdminError('User not found', 'not_found');
-    throw new AdminError('An administrator cannot be removed, only suspended', 'last_admin');
-  }
-  if (!canManageUsers(principal, target.company_id ?? '')) {
-    throw new AdminError('User not found', 'not_found');
   }
 
   /*
@@ -415,19 +412,6 @@ export interface NewDevice {
   assignedBatteryId?: string | null;
 }
 
-/** Counted against the plan, the same way seats and batteries are. */
-export function deviceUsage(store: Store, companyId: string): SeatUsage {
-  const used = store.get<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM devices WHERE company_id = ? AND security_status <> 'revoked'",
-    companyId
-  );
-  const subscription = store.get<{ device_limit: number | null }>(
-    "SELECT device_limit FROM subscriptions WHERE company_id = ? AND status = 'active'",
-    companyId
-  );
-  return { used: used?.n ?? 0, limit: subscription?.device_limit ?? null };
-}
-
 export function registerDevice(
   store: Store,
   principal: Principal,
@@ -437,20 +421,25 @@ export function registerDevice(
   if (!canManageUsers(principal, input.companyId)) {
     throw new AdminError('Not permitted to register devices for that company', 'forbidden');
   }
-  if (store.get('SELECT id FROM devices WHERE serial = ?', input.serial)) {
+  const serial = input.serial.trim();
+  if (store.get('SELECT id FROM devices WHERE serial = ?', serial)) {
     throw new AdminError('That device serial is already registered', 'email_taken');
   }
 
-  // A revoked gateway is out of service and does not hold a slot — otherwise a
-  // company that lost a device would have to raise its plan to replace it.
-  const { used, limit } = deviceUsage(store, input.companyId);
-  if (limit !== null && used >= limit) {
-    throw new AdminError(
-      `Device limit reached (${used}/${limit}). Revoke a gateway or raise the plan.`,
-      'device_limit_reached'
+  // A gateway is assigned to one of the company's own packs or to none. An id
+  // from elsewhere is simply not a pack, so the same answer as a typo.
+  if (input.assignedBatteryId) {
+    const pack = store.get<{ company_id: string }>(
+      'SELECT company_id FROM batteries WHERE id = ?',
+      input.assignedBatteryId
     );
+    if (!pack || pack.company_id !== input.companyId) {
+      throw new AdminError('Battery not found', 'not_found');
+    }
   }
 
+  // No gateway cap. How much hardware a company runs is the company's own
+  // business.
   const id = randomUUID();
   store.run(
     `INSERT INTO devices
@@ -458,7 +447,7 @@ export function registerDevice(
      VALUES (?,?,?,?,?,?,?,?)`,
     id,
     input.companyId,
-    input.serial,
+    serial,
     input.hardwareRevision,
     input.firmwareVersion,
     input.assignedBatteryId ?? null,
@@ -479,26 +468,12 @@ export interface NewBattery {
   capacityAh?: number | null;
 }
 
-/** Counted against the plan's battery limit the same way seats are. */
-export function batteryUsage(store: Store, companyId: string): SeatUsage {
-  const used = store.get<{ n: number }>(
-    'SELECT COUNT(*) AS n FROM batteries WHERE company_id = ?',
-    companyId
-  );
-  const subscription = store.get<{ battery_limit: number | null }>(
-    "SELECT battery_limit FROM subscriptions WHERE company_id = ? AND status = 'active'",
-    companyId
-  );
-  return { used: used?.n ?? 0, limit: subscription?.battery_limit ?? null };
-}
-
 /**
  * Onboard a battery.
  *
- * The serial is unique platform-wide rather than per tenant, deliberately: a
- * pack is a physical object that can be sold on or moved between fleets, and
- * two companies each holding a record for serial `BAT-00042` would make its
- * history impossible to follow across that move.
+ * The serial is unique across the database, deliberately: a pack is a physical
+ * object, and two records for serial `BAT-00042` would make its history
+ * impossible to follow.
  */
 export function registerBattery(
   store: Store,
@@ -515,9 +490,7 @@ export function registerBattery(
     throw new AdminError('That battery serial is already registered', 'email_taken');
   }
 
-  // No battery cap either, for the same reason as seats. `batteryUsage`
-  // remains a count for the dashboard.
-
+  // No battery cap, for the same reason as people and gateways.
   const id = randomUUID();
   store.run(
     `INSERT INTO batteries
@@ -549,8 +522,7 @@ export function setDeviceSecurityStatus(
     'SELECT id, company_id FROM devices WHERE id = ?',
     deviceId
   );
-  if (!device) throw new AdminError('Device not found', 'not_found');
-  if (!canManageUsers(principal, device.company_id)) {
+  if (!device || !canManageUsers(principal, device.company_id)) {
     throw new AdminError('Device not found', 'not_found');
   }
   store.run('UPDATE devices SET security_status = ? WHERE id = ?', status, deviceId);
@@ -560,7 +532,6 @@ export function listDevices(store: Store, principal: Principal) {
   const q = tenantQuery(principal, 'devices', { orderBy: 'serial ASC' });
   return store.all(q.sql, ...q.params);
 }
-
 
 /* ------------------------------------------------------ editing batteries */
 
@@ -579,8 +550,7 @@ export interface BatteryPatch {
 /**
  * The battery this principal may edit, or not-found.
  *
- * Scoped the same way as everything else: a company sees its own packs, an
- * administrator sees all of them, and "not yours" is the same answer as
+ * Only an administrator edits packs, and "not yours" is the same answer as
  * "not there" so the route cannot be used to discover serials.
  */
 function ownedBattery(store: Store, principal: Principal, batteryId: string): { id: string; company_id: string } {
@@ -661,68 +631,4 @@ export function retireBattery(
 export function reinstateBattery(store: Store, principal: Principal, batteryId: string): void {
   ownedBattery(store, principal, batteryId);
   store.run("UPDATE batteries SET status = 'active' WHERE id = ?", batteryId);
-}
-
-/* ------------------------------------------------------- platform overview */
-
-export interface PlatformOverview {
-  companies: { total: number; withAccess: number; lapsingWithin30Days: number };
-  users: { total: number; active: number };
-  batteries: { total: number; reportingWithin24Hours: number };
-  gateways: { total: number; inService: number };
-}
-
-/**
- * The numbers an administrator opens the app to see.
- *
- * Counted in SQL rather than by listing and measuring in JavaScript: a fleet
- * that has grown past a page would otherwise report the size of the page.
- *
- * `lapsingWithin30Days` is the one that asks for action. The rest describe the
- * platform; that one says which companies stop working next month unless
- * somebody renews them.
- */
-export function platformOverview(store: Store, now = Date.now()): PlatformOverview {
-  const count = (sql: string, ...params: (string | number)[]): number =>
-    store.get<{ n: number }>(sql, ...params)?.n ?? 0;
-
-  const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
-
-  return {
-    companies: {
-      total: count('SELECT COUNT(*) AS n FROM companies'),
-      withAccess: count(
-        `SELECT COUNT(DISTINCT c.id) AS n FROM companies c
-         JOIN subscriptions s ON s.company_id = c.id
-         WHERE c.status = 'active' AND s.status = 'active' AND s.renewal_date > ?`,
-        now
-      ),
-      lapsingWithin30Days: count(
-        `SELECT COUNT(DISTINCT c.id) AS n FROM companies c
-         JOIN subscriptions s ON s.company_id = c.id
-         WHERE c.status = 'active' AND s.status = 'active'
-           AND s.renewal_date > ? AND s.renewal_date <= ?`,
-        now,
-        now + THIRTY_DAYS
-      ),
-    },
-    users: {
-      // Platform administrators are excluded: they belong to no company and
-      // are not what "how many users are on the platform" is asking.
-      total: count("SELECT COUNT(*) AS n FROM users WHERE role <> 'admin'"),
-      active: count("SELECT COUNT(*) AS n FROM users WHERE role <> 'admin' AND status = 'active'"),
-    },
-    batteries: {
-      total: count('SELECT COUNT(*) AS n FROM batteries'),
-      // "Connected" is not a state a pack holds; it is a recent reading.
-      reportingWithin24Hours: count(
-        `SELECT COUNT(DISTINCT battery_id) AS n FROM telemetry_readings WHERE recorded_at > ?`,
-        now - 24 * 60 * 60 * 1000
-      ),
-    },
-    gateways: {
-      total: count('SELECT COUNT(*) AS n FROM devices'),
-      inService: count("SELECT COUNT(*) AS n FROM devices WHERE security_status = 'valid'"),
-    },
-  };
 }

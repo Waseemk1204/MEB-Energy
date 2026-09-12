@@ -29,7 +29,7 @@ const COMPANY = 'company-acme';
 beforeEach(() => {
   store = createStore();
   const now = Date.now();
-  seedCompany(store, COMPANY, 'Acme EV', {}, now);
+  seedCompany(store, COMPANY, 'Acme EV', now);
   store.run(
     'INSERT INTO users (id, company_id, email, display_name, role, password_hash, created_at) VALUES (?,?,?,?,?,?,?)',
     USER,
@@ -104,8 +104,8 @@ describe('access tokens', () => {
     assert.deepEqual(await verifyAccessToken(token, SECRET), principal);
   });
 
-  it('carries an admin with no tenant', async () => {
-    const admin: Principal = { userId: 'admin-1', role: 'admin', companyId: null };
+  it('carries an administrator, inside the company like everyone', async () => {
+    const admin: Principal = { userId: 'admin-1', role: 'company', companyId: COMPANY };
     const token = await issueAccessToken(admin, SECRET);
     assert.deepEqual(await verifyAccessToken(token, SECRET), admin);
   });
@@ -131,18 +131,23 @@ describe('access tokens', () => {
     );
   });
 
-  /** The schema's rule, restated at the token boundary. */
-  it('rejects an admin token that also claims a tenant', async () => {
+  /**
+   * The schema's rule, restated at the token boundary. A token from before
+   * this was one company's application — a platform administrator's, with a
+   * role that no longer exists and no tenant — is malformed regardless of a
+   * valid signature.
+   */
+  it('rejects a token carrying the retired platform-admin role', async () => {
     const token = await issueAccessToken(
-      { userId: 'x', role: 'admin', companyId: 'company-acme' },
+      { userId: 'x', role: 'admin' as never, companyId: 'company-acme' },
       SECRET
     );
-    await assert.rejects(() => verifyAccessToken(token, SECRET), /disagree/);
+    await assert.rejects(() => verifyAccessToken(token, SECRET), /unknown role/);
   });
 
-  it('rejects a non-admin token with no tenant', async () => {
-    const token = await issueAccessToken({ userId: 'x', role: 'user', companyId: null }, SECRET);
-    await assert.rejects(() => verifyAccessToken(token, SECRET), /disagree/);
+  it('rejects a token with no tenant', async () => {
+    const token = await issueAccessToken({ userId: 'x', role: 'user', companyId: null as never }, SECRET);
+    await assert.rejects(() => verifyAccessToken(token, SECRET), /missing required claims/);
   });
 
   it('is short-lived', () => {

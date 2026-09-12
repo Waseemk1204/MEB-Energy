@@ -1,9 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 
 /**
- * Cross-origin access for the admin console.
+ * Cross-origin access for the web app.
  *
- * The API had none until the console tried to call it: every prior exercise was
+ * The API had none until a browser tried to call it: every prior exercise was
  * curl or `app.inject`, neither of which is a browser. Adding it raised the
  * question of how permissive to be, and the answers here are deliberate.
  *
@@ -17,17 +17,20 @@ import type { FastifyInstance } from 'fastify';
  *   origin's allowed response to another, which quietly turns an allowlist
  *   into a wildcard.
  *
- * · **No credentials.** Authentication is a bearer token the console holds
+ * · **No credentials.** Authentication is a bearer token the app holds
  *   itself, not a cookie, so `Access-Control-Allow-Credentials` stays off. That
  *   also means a future mistake that widened the allowlist could not be
  *   combined with ambient cookie auth to make requests on a user's behalf.
  *
- * · **Only the methods and headers actually used.** The API has no DELETE and
- *   sends no custom headers; advertising them would be describing a surface
- *   that does not exist.
+ * · **Only the methods and headers actually used.** The API sends no custom
+ *   headers; advertising any would be describing a surface that does not
+ *   exist. DELETE is listed because retiring a pack, removing a person and
+ *   ending a BLE session all use it — the first version of this list left it
+ *   out, and a browser refused every one of those at the preflight while the
+ *   Node-side live check, which sends no preflight, passed.
  */
 
-const ALLOWED_METHODS = 'GET, POST, PATCH, OPTIONS';
+const ALLOWED_METHODS = 'GET, POST, PATCH, DELETE, OPTIONS';
 const ALLOWED_HEADERS = 'content-type, authorization';
 
 /** Preflight results are stable; a day saves a round trip per session. */

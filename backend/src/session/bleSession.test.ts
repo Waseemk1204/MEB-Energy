@@ -33,7 +33,7 @@ const otherTech: Principal = { userId: 'u-other', role: 'user', companyId: ACME 
 beforeEach(() => {
   store = createStore();
   const now = Date.now();
-  seedCompany(store, ACME, 'Acme', {}, now);
+  seedCompany(store, ACME, 'Acme', now);
   for (const [id, serial] of [
     [BATTERY, 'BAT-1'],
     [OTHER_BATTERY, 'BAT-2'],

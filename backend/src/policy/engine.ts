@@ -38,11 +38,11 @@ export interface WriteRequest {
   targetCompanyId: string;
   /** Mandatory for Critical parameters (PRD §6.2). */
   reason?: string;
-  /** Set only for an Admin acting inside a tracked support session (§7.13). */
+  /** Set only for an administrator acting inside a tracked support session (§7.13). */
   supportSessionId?: string;
   /** Whether the user's BLE session is live — Mode 1 (§7.3). */
   bleSessionActive: boolean;
-  /** Distinctly-flagged admin override (§6.3). */
+  /** Distinctly-flagged administrator override (§6.3). */
   forcePush?: boolean;
 }
 
@@ -111,13 +111,12 @@ export function evaluateWrite(
     );
   }
 
-  if (definition.requiresAdmin && principal.role !== 'admin') {
+  if (definition.requiresAdmin && principal.role !== 'company') {
     return deny('requires_admin', `${definition.displayName} may only be changed by an administrator`);
   }
 
-  // Tenancy. An admin is platform-wide; everyone else writes only to their own
-  // company's batteries.
-  if (principal.role !== 'admin' && principal.companyId !== request.targetCompanyId) {
+  // Tenancy. Everyone writes only to their own company's batteries.
+  if (principal.companyId !== request.targetCompanyId) {
     return deny('wrong_tenant', 'Battery not found');
   }
 
@@ -136,12 +135,17 @@ export function evaluateWrite(
   }
 
   /**
-   * Mode 1, §7.3. No command reaches a BMS without the user's BLE session
-   * being live — and Force Push does not change that. It overrides queue state
-   * and soft-holds, never the architectural requirement.
+   * Mode 1, §7.3. No command reaches a BMS without a live BLE session at the
+   * pack — and Force Push does not change that. It overrides queue state and
+   * soft-holds, never the architectural requirement.
+   *
+   * An administrator writing through this path is remote by definition: the
+   * on-site path is the app's own BLE write, which reports itself through the
+   * audit upload. So their write needs somebody's session, and is recorded as
+   * a remote one.
    */
   if (!request.bleSessionActive) {
-    return principal.role === 'admin'
+    return principal.role === 'company'
       ? deny(
           'session_required_for_admin_write',
           'No active user session: an administrator cannot reach this battery, and Force Push does not bypass that'
@@ -150,7 +154,7 @@ export function evaluateWrite(
   }
 
   const source =
-    principal.role !== 'admin'
+    principal.role !== 'company'
       ? ('local' as const)
       : request.forcePush
         ? ('admin_force_push' as const)
@@ -167,7 +171,7 @@ export function evaluateRead(
 ): Decision {
   if (!definition) return deny('unknown_parameter', 'No such parameter');
   if (!definition.readable) return deny('not_writable', 'Parameter is not readable');
-  if (principal.role !== 'admin' && principal.companyId !== targetCompanyId) {
+  if (principal.companyId !== targetCompanyId) {
     return deny('wrong_tenant', 'Battery not found');
   }
   return { allowed: true, requiresConfirmation: false, source: 'local' };

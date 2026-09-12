@@ -31,10 +31,10 @@ const seedUser = (id: string, email: string, status = 'invited', hash = NO_PASSW
 
 beforeEach(() => {
   store = createStore();
-  seedCompany(store, 'c1', 'Acme', {}, NOW);
+  seedCompany(store, 'c1', 'Acme', NOW);
   store.run(
     'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
-    'admin-1', null, 'ops@knowyourev.example', 'Ops', 'admin', 'hash', 'active', NOW
+    'admin-1', 'c1', 'ops@acme.example', 'Ops', 'company', 'hash', 'active', NOW
   );
   seedUser('u-invited', 'new@acme.example');
 });

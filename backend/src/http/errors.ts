@@ -1,6 +1,6 @@
 import { TenantScopeError } from '../db/tenancy.js';
 import { AuthError } from '../auth/tokens.js';
-import { AdminError } from '../admin/service.js';
+import { AdminError } from '../company/service.js';
 import { BrokerError } from '../broker/commands.js';
 import { InvitationError } from '../auth/invitations.js';
 
@@ -93,14 +93,9 @@ export function toApiError(error: unknown): ApiError {
  * Conflicts with existing state, not malformed requests — 409 rather than 400,
  * so a client can tell "you asked for something impossible right now" from
  * "you asked wrongly".
- *
- * Seat and battery limits used to live here. They are gone: what a company
- * pays is settled outside the product, so the only commercial control is
- * whether their access is on.
  */
 const ADMIN_STATUS: Record<AdminError['code'], number> = {
   forbidden: 403,
-  device_limit_reached: 409,
   has_history: 409,
   email_taken: 409,
   last_admin: 409,
@@ -140,27 +135,3 @@ export const forbidden = (message: string, code = 'forbidden') => new HttpError(
 export const notFound = (what: string) => new HttpError(404, 'not_found', `${what} not found`);
 export const tooManyRequests = (message: string) =>
   new HttpError(429, 'too_many_requests', message);
-
-/**
- * Why a company cannot be used right now.
- *
- * 403 rather than 401: the credentials were correct and re-entering them will
- * not help. Somebody in this position needs to contact their administrator,
- * and a message telling them their password is wrong sends them nowhere.
- *
- * This is not the enumeration concern that makes login deliberately vague —
- * the caller has already proved who they are.
- */
-export const entitlementRefusal = (code: string) =>
-  new HttpError(
-    403,
-    code,
-    {
-      company_suspended: 'This company’s access has been suspended. Contact your administrator.',
-      no_subscription: 'This company has no active plan. Contact your administrator.',
-      subscription_expired:
-        'This company’s plan has expired. Contact your administrator to renew it.',
-      subscription_cancelled:
-        'This company’s plan has been cancelled. Contact your administrator.',
-    }[code] ?? 'This company cannot be used right now. Contact your administrator.'
-  );

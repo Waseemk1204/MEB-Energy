@@ -17,9 +17,9 @@ import { forbidden } from '../http/errors.js';
  * takes effect "soon" is not revocation, and the person you are revoking is
  * usually the person you most want stopped now.
  *
- * A platform administrator has every permission implicitly. They are not
- * inside a company and no company owner can grant or remove anything from
- * them, so there is nothing for a flag to express.
+ * The company's administrator has every permission implicitly. They are the
+ * one who grants and removes them, and nobody sits above them to do the same
+ * for them, so there is nothing for a flag to express.
  */
 
 export interface Permissions {
@@ -39,7 +39,12 @@ export const DEFAULT_PERMISSIONS: Permissions = {
   health: true,
 };
 
-const ADMIN_PERMISSIONS: Permissions = { read: true, write: true, location: true, health: true };
+const ADMINISTRATOR_PERMISSIONS: Permissions = {
+  read: true,
+  write: true,
+  location: true,
+  health: true,
+};
 
 interface PermissionRow {
   can_read: number;
@@ -56,7 +61,7 @@ interface PermissionRow {
  * revokes sessions, but a token issued moments before must not outlive it.
  */
 export function permissionsOf(store: Store, principal: Principal): Permissions {
-  if (principal.role === 'admin') return ADMIN_PERMISSIONS;
+  if (principal.role === 'company') return ADMINISTRATOR_PERMISSIONS;
 
   const row = store.get<PermissionRow>(
     'SELECT can_read, can_write, can_location, can_health, status FROM users WHERE id = ?',

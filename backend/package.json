@@ -1,5 +1,5 @@
 {
-  "name": "knowyourev-backend",
+  "name": "meb-energy-backend",
   "version": "1.0.0",
   "scripts": {
     "dev": "tsx watch src/main.ts",

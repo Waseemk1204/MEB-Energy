@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 import type { Store } from '../db/client.js';
-import type { Principal, Role } from '../db/tenancy.js';
+import { isRole, type Principal, type Role } from '../db/tenancy.js';
 
 /**
  * Short-lived access tokens with rotating refresh tokens (PRD §8.1).
@@ -18,14 +18,14 @@ import type { Principal, Role } from '../db/tenancy.js';
 export const ACCESS_TTL_SECONDS = 15 * 60;
 export const REFRESH_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
-const ISSUER = 'knowyourev';
-const AUDIENCE = 'knowyourev-clients';
+const ISSUER = 'meb-energy';
+const AUDIENCE = 'meb-energy-app';
 
 export interface AccessClaims extends JWTPayload {
   sub: string;
   role: Role;
-  /** Null for platform admins; every other principal is tenant-bound. */
-  cid: string | null;
+  /** The company. Every principal is tenant-bound. */
+  cid: string;
 }
 
 export class AuthError extends Error {
@@ -73,18 +73,19 @@ export async function verifyAccessToken(token: string, secret: Uint8Array): Prom
       algorithms: ['HS256'],
     });
 
-    if (!payload.sub || !payload.role) {
+    if (!payload.sub || !payload.role || !payload.cid) {
       throw new AuthError('Token is missing required claims', 'invalid_token');
     }
 
-    const companyId = payload.cid ?? null;
-    // The same rule the schema enforces: only admins are tenantless. A token
-    // claiming otherwise is malformed regardless of a valid signature.
-    if ((payload.role === 'admin') !== (companyId === null)) {
-      throw new AuthError('Token role and tenant claim disagree', 'invalid_token');
+    // The same rule the schema enforces: every account belongs to the company
+    // and holds one of the two roles. A token from before that was true — a
+    // platform administrator's, say — is malformed regardless of a valid
+    // signature.
+    if (!isRole(payload.role)) {
+      throw new AuthError('Token carries an unknown role', 'invalid_token');
     }
 
-    return { userId: payload.sub, role: payload.role, companyId };
+    return { userId: payload.sub, role: payload.role, companyId: payload.cid };
   } catch (error) {
     if (error instanceof AuthError) throw error;
     const code = (error as { code?: string }).code;
@@ -121,7 +122,7 @@ export function issueRefreshToken(
   userId: string,
   now = Date.now(),
   /**
-   * What the person is signing in on, for the concurrent-device cap. Carried
+   * What the person is signing in on, so a session can be named. Carried
    * across rotation so a device keeps its name for the life of the session
    * rather than becoming anonymous the first time its token renews.
    */
@@ -184,9 +185,8 @@ export function rotateRefreshToken(
   }
 
   return store.transaction(() => {
-    // Rotation is the same device continuing, not a new one. It keeps the
-    // label, and deliberately does not re-check the device cap: the count is
-    // unchanged, and re-checking here would let a rotation evict a sibling.
+    // Rotation is the same device continuing, not a new one, so it keeps the
+    // label.
     const next = issueRefreshToken(store, row.user_id, now, row.device_label ?? null);
     store.run(
       'UPDATE refresh_tokens SET revoked_at = ?, replaced_by = ? WHERE id = ?',

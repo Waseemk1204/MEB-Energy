@@ -113,7 +113,7 @@ export async function performWrite(
     // Refused before the radio. Still recorded, still attributable.
     const auditId = recordAudit(store, {
       ...base,
-      source: principal.role === 'admin' ? 'admin_remote' : 'local',
+      source: principal.role === 'company' ? 'admin_remote' : 'local',
       result: 'rejected',
       bmsResponse: `policy:${decision.code}`,
     });

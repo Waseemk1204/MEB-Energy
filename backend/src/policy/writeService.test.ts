@@ -16,7 +16,10 @@ const ACME_BATTERY = 'bat-acme';
 const RIVAL_BATTERY = 'bat-rival';
 
 const user: Principal = { userId: 'u1', role: 'user', companyId: ACME };
-const admin: Principal = { userId: 'a1', role: 'admin', companyId: null };
+/** The company's administrator. Inside the company, like everyone. */
+const admin: Principal = { userId: 'a1', role: 'company', companyId: ACME };
+/** Somebody at the other company, for the ledger to be scoped against. */
+const rivalUser: Principal = { userId: 'r1', role: 'user', companyId: RIVAL };
 
 const ok = (readBack?: number): Dispatcher => ({
   send: async ({ value }) => ({ result: 'success', readBack: readBack ?? value }),
@@ -50,7 +53,7 @@ beforeEach(() => {
     [ACME, 'Acme EV'],
     [RIVAL, 'Rival Fleet'],
   ] as const) {
-    seedCompany(store, id, name, {}, now);
+    seedCompany(store, id, name, now);
   }
   for (const [id, company, serial] of [
     [ACME_BATTERY, ACME, 'BAT-ACME-1'],
@@ -82,10 +85,20 @@ beforeEach(() => {
   store.run(
     'INSERT INTO users (id, company_id, email, display_name, role, password_hash, created_at) VALUES (?,?,?,?,?,?,?)',
     'a1',
-    null,
-    'a1@knowyourev.example',
+    ACME,
+    'a1@acme.example',
     'A',
-    'admin',
+    'company',
+    'x',
+    now
+  );
+  store.run(
+    'INSERT INTO users (id, company_id, email, display_name, role, password_hash, created_at) VALUES (?,?,?,?,?,?,?)',
+    'r1',
+    RIVAL,
+    'r1@rival.example',
+    'R',
+    'user',
     'x',
     now
   );
@@ -243,15 +256,17 @@ describe('tenant isolation on the write path', () => {
     assert.match(message!, /not found/);
   });
 
-  it('lets an admin write across tenants', async () => {
-    const out = await performWrite(store, ok(), admin, 'cell_ovp', 3.8, context({ batteryId: RIVAL_BATTERY }));
-    assert.equal(out.ok, true);
+  /** Nobody is platform-wide: an administrator is the company's, not everyone's. */
+  it('refuses even an administrator a write across tenants', async () => {
+    const message = await performWrite(store, ok(), admin, 'cell_ovp', 3.8, context({ batteryId: RIVAL_BATTERY }))
+      .then(() => null)
+      .catch((e: Error) => e.message);
+    assert.match(message!, /not found/);
   });
 
-  it('files the audit row against the battery’s company, not the actor’s', async () => {
-    await performWrite(store, ok(), admin, 'cell_ovp', 3.8, context({ batteryId: RIVAL_BATTERY }));
-    const rival: Principal = { userId: 'r1', role: 'user', companyId: RIVAL };
-    assert.equal(auditFor(rival).length, 1);
+  it('leaves no trace in the other company’s ledger', async () => {
+    await performWrite(store, ok(), admin, 'cell_ovp', 3.8, context({ batteryId: RIVAL_BATTERY })).catch(() => undefined);
+    assert.equal(auditFor(rivalUser).length, 0);
   });
 });
 
@@ -286,9 +301,10 @@ describe('reading the ledger', () => {
 
   it('is scoped to the caller’s tenant', async () => {
     await write('cell_ovp', 3.8);
-    await performWrite(store, ok(), admin, 'cell_ovp', 3.8, context({ batteryId: RIVAL_BATTERY }));
+    await performWrite(store, ok(), rivalUser, 'cell_ovp', 3.8, context({ batteryId: RIVAL_BATTERY }));
     assert.equal(auditFor(user).length, 1);
-    assert.equal(auditFor(admin).length, 2);
+    assert.equal(auditFor(admin).length, 1);
+    assert.equal(auditFor(rivalUser).length, 1);
   });
 
   it('filters by result', async () => {

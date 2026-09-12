@@ -34,14 +34,14 @@ beforeEach(async () => {
   const now = Date.now();
   const hash = await hashPassword(PASSWORD, CHEAP);
 
-  seedCompany(store, ACME, 'Acme EV', {}, now);
+  seedCompany(store, ACME, 'Acme EV', now);
   store.run(
     `INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, bms_model, created_at)
      VALUES (?,?,?,?,?,?,?)`,
     BATTERY, ACME, 'BAT-ACME-1', 'LiFePO4', 24, JBD_SP24S004, now
   );
   for (const [id, company, email, role] of [
-    ['u-admin', null, 'admin@knowyourev.example', 'admin'],
+    ['u-admin', ACME, 'admin@acme.example', 'company'],
     ['u-tech', ACME, 'tech@acme.example', 'user'],
     ['u-tech-2', ACME, 'tech2@acme.example', 'user'],
   ] as const) {
@@ -86,7 +86,7 @@ const claim = (token: string) =>
 
 describe('support sessions over HTTP', () => {
   it('an administrator can open one', async () => {
-    const res = await openTicket(await tokenFor('admin@knowyourev.example'));
+    const res = await openTicket(await tokenFor('admin@acme.example'));
     assert.equal(res.statusCode, 201);
     assert.ok(res.json().supportSessionId);
   });
@@ -97,7 +97,7 @@ describe('support sessions over HTTP', () => {
   });
 
   it('closing reports how much queued work it voided', async () => {
-    const token = await tokenFor('admin@knowyourev.example');
+    const token = await tokenFor('admin@acme.example');
     const { supportSessionId } = (await openTicket(token)).json();
     await issue(token, supportSessionId, {});
     await issue(token, supportSessionId, { parameterKey: 'balance_start_v', value: 3.4 });
@@ -113,7 +113,7 @@ describe('support sessions over HTTP', () => {
   });
 
   it('returns 409 for a command on a closed session', async () => {
-    const token = await tokenFor('admin@knowyourev.example');
+    const token = await tokenFor('admin@acme.example');
     const { supportSessionId } = (await openTicket(token)).json();
     await app.inject({
       method: 'PATCH',
@@ -126,14 +126,14 @@ describe('support sessions over HTTP', () => {
   });
 
   it('returns 422 for a policy refusal', async () => {
-    const token = await tokenFor('admin@knowyourev.example');
+    const token = await tokenFor('admin@acme.example');
     const { supportSessionId } = (await openTicket(token)).json();
     const res = await issue(token, supportSessionId, { value: 4.2 });
     assert.equal(res.statusCode, 422);
   });
 
   it('returns 404 for someone else’s session', async () => {
-    const admin = await tokenFor('admin@knowyourev.example');
+    const admin = await tokenFor('admin@acme.example');
     const { supportSessionId } = (await openTicket(admin)).json();
     const res = await issue(await tokenFor('tech@acme.example'), supportSessionId, {});
     assert.equal(res.statusCode, 404);
@@ -146,7 +146,7 @@ describe('support sessions over HTTP', () => {
  */
 describe('the whole assisted-write journey', () => {
   it('queues, waits for a technician, delivers, and lands in the audit trail', async () => {
-    const admin = await tokenFor('admin@knowyourev.example');
+    const admin = await tokenFor('admin@acme.example');
     const tech = await tokenFor('tech@acme.example');
 
     // 1. Admin opens a session and issues a change. Nobody is on site.
@@ -185,7 +185,7 @@ describe('the whole assisted-write journey', () => {
 
   /** The technician sees the change without ever being asked to approve it. */
   it('never asks the technician for approval', async () => {
-    const admin = await tokenFor('admin@knowyourev.example');
+    const admin = await tokenFor('admin@acme.example');
     const tech = await tokenFor('tech@acme.example');
     const { supportSessionId } = (await openTicket(admin)).json();
     await goOnSite(tech);
@@ -200,7 +200,7 @@ describe('the whole assisted-write journey', () => {
 
 describe('Mode 1 over HTTP', () => {
   it('hands out nothing while nobody is on site', async () => {
-    const admin = await tokenFor('admin@knowyourev.example');
+    const admin = await tokenFor('admin@acme.example');
     const { supportSessionId } = (await openTicket(admin)).json();
     await issue(admin, supportSessionId, {});
     assert.deepEqual((await claim(await tokenFor('tech@acme.example'))).json().commands, []);
@@ -208,7 +208,7 @@ describe('Mode 1 over HTTP', () => {
 
   /** Force Push jumps the queue; it does not conjure a technician. */
   it('will not deliver a Force Push to an empty site', async () => {
-    const admin = await tokenFor('admin@knowyourev.example');
+    const admin = await tokenFor('admin@acme.example');
     const { supportSessionId } = (await openTicket(admin)).json();
     const issued = await issue(admin, supportSessionId, { forcePush: true });
     assert.equal(issued.json().disposition, 'queued');
@@ -216,7 +216,7 @@ describe('Mode 1 over HTTP', () => {
   });
 
   it('delivers a Force Push ahead of older work once someone arrives', async () => {
-    const admin = await tokenFor('admin@knowyourev.example');
+    const admin = await tokenFor('admin@acme.example');
     const tech = await tokenFor('tech@acme.example');
     const { supportSessionId } = (await openTicket(admin)).json();
     await issue(admin, supportSessionId, { parameterKey: 'balance_start_v', value: 3.4 });
@@ -229,7 +229,7 @@ describe('Mode 1 over HTTP', () => {
   });
 
   it('gives a different technician nothing', async () => {
-    const admin = await tokenFor('admin@knowyourev.example');
+    const admin = await tokenFor('admin@acme.example');
     const { supportSessionId } = (await openTicket(admin)).json();
     await issue(admin, supportSessionId, {});
     await goOnSite(await tokenFor('tech@acme.example'));
@@ -238,7 +238,7 @@ describe('Mode 1 over HTTP', () => {
   });
 
   it('hands a command out exactly once', async () => {
-    const admin = await tokenFor('admin@knowyourev.example');
+    const admin = await tokenFor('admin@acme.example');
     const tech = await tokenFor('tech@acme.example');
     const { supportSessionId } = (await openTicket(admin)).json();
     await issue(admin, supportSessionId, {});

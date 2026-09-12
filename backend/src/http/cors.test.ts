@@ -9,12 +9,12 @@ import { buildServer } from '../server.js';
 import { isAllowed, parseOrigins } from './cors.js';
 
 /**
- * Cross-origin access. The API served no browser at all until the console
+ * Cross-origin access. The API served no browser at all until the web app
  * tried to call it, so these are the rules that were chosen when it did.
  */
 
 const SECRET = secretFrom('a-cors-test-signing-secret-of-length!!');
-const CONSOLE = 'https://console.knowyourev.example';
+const CONSOLE = 'https://app.mebenergy.example';
 const dispatcher: Dispatcher = { send: async ({ value }) => ({ result: 'success', readBack: value }) };
 
 let store: Store;
@@ -53,7 +53,7 @@ describe('reading the configured origins', () => {
 });
 
 describe('deciding whether an origin is allowed', () => {
-  const allowed = ['https://console.knowyourev.example'];
+  const allowed = ['https://app.mebenergy.example'];
 
   it('admits an exact match', () => {
     assert.equal(isAllowed(CONSOLE, allowed), true);
@@ -65,20 +65,20 @@ describe('deciding whether an origin is allowed', () => {
 
   /** `example.com` must not admit `evil-example.com`. */
   it('refuses a lookalike suffix', () => {
-    assert.equal(isAllowed('https://evil-console.knowyourev.example', allowed), false);
-    assert.equal(isAllowed('https://console.knowyourev.example.evil.com', allowed), false);
+    assert.equal(isAllowed('https://evil-app.mebenergy.example', allowed), false);
+    assert.equal(isAllowed('https://app.mebenergy.example.evil.com', allowed), false);
   });
 
   it('refuses a subdomain that was not listed', () => {
-    assert.equal(isAllowed('https://staging.console.knowyourev.example', allowed), false);
+    assert.equal(isAllowed('https://staging.app.mebenergy.example', allowed), false);
   });
 
   it('refuses the same host on a different scheme', () => {
-    assert.equal(isAllowed('http://console.knowyourev.example', allowed), false);
+    assert.equal(isAllowed('http://app.mebenergy.example', allowed), false);
   });
 
   it('refuses the same host on a different port', () => {
-    assert.equal(isAllowed('https://console.knowyourev.example:8443', allowed), false);
+    assert.equal(isAllowed('https://app.mebenergy.example:8443', allowed), false);
   });
 
   it('refuses everything when nothing is configured', () => {
@@ -113,8 +113,8 @@ describe('what the API actually sends back', () => {
     const app = serverWith([CONSOLE]);
     const res = await app.inject({ method: 'OPTIONS', url: '/x', headers: { origin: CONSOLE } });
     const methods = String(res.headers['access-control-allow-methods']);
-    for (const m of ['GET', 'POST', 'PATCH']) assert.ok(methods.includes(m), `${m} missing`);
-    assert.ok(!methods.includes('DELETE'), 'the API has no DELETE');
+    for (const m of ['GET', 'POST', 'PATCH', 'DELETE']) assert.ok(methods.includes(m), `${m} missing`);
+    assert.ok(!methods.includes('PUT'), 'the API has no PUT');
   });
 
   it('allows the authorization header, without which nothing works', async () => {

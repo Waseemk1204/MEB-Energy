@@ -24,30 +24,15 @@ CREATE TABLE IF NOT EXISTS companies (
   created_at INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS subscriptions (
-  id TEXT PRIMARY KEY,
-  company_id TEXT NOT NULL REFERENCES companies(id),
-  plan_type TEXT NOT NULL DEFAULT 'yearly' CHECK (plan_type = 'yearly'),
-  start_date INTEGER NOT NULL,
-  renewal_date INTEGER NOT NULL,
-  seat_limit INTEGER NOT NULL,
-  -- KnowyourEV gateways the company may register.
-  device_limit INTEGER,
-  -- Phones and browsers the company-owner account may be signed in on at
-  -- once. A different thing from device_limit above, and named apart because
-  -- "device" meaning both is exactly how the two get confused.
-  session_device_limit INTEGER,
-  battery_limit INTEGER,
-  status TEXT NOT NULL DEFAULT 'active',
-  created_at INTEGER NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  company_id TEXT REFERENCES companies(id),
+  -- Everybody belongs to the company. There is no tenantless account: the
+  -- company's own administrator is the top of the hierarchy.
+  company_id TEXT NOT NULL REFERENCES companies(id),
   email TEXT NOT NULL,
   display_name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('admin','company','user')),
+  -- 'company' is the company's administrator, 'user' a technician.
+  role TEXT NOT NULL CHECK (role IN ('company','user')),
   password_hash TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active',
   created_at INTEGER NOT NULL,
@@ -59,11 +44,7 @@ CREATE TABLE IF NOT EXISTS users (
   can_read INTEGER NOT NULL DEFAULT 1,
   can_write INTEGER NOT NULL DEFAULT 0,
   can_location INTEGER NOT NULL DEFAULT 1,
-  can_health INTEGER NOT NULL DEFAULT 1,
-
-  -- A non-admin principal must belong to a tenant. Enforced here so no code
-  -- path can create a rootless user that the scoping rules cannot classify.
-  CHECK ((role = 'admin' AND company_id IS NULL) OR (role <> 'admin' AND company_id IS NOT NULL))
+  can_health INTEGER NOT NULL DEFAULT 1
 );
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users(email);
 
@@ -305,6 +286,17 @@ function addColumnIfMissing(db: DatabaseSync, table: string, column: string, dec
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${decl}`);
 }
 
+/**
+ * A database from before this was one company's application may hold
+ * platform administrators: tenantless accounts with a role that no longer
+ * exists. They cannot be deleted — the audit ledger may name them — so they
+ * are suspended, which is what the login path checks. Nothing else about
+ * them is touched.
+ */
+function retireLegacyPlatformAdmins(db: DatabaseSync): void {
+  db.prepare("UPDATE users SET status = 'suspended' WHERE role = 'admin' AND status <> 'suspended'").run();
+}
+
 export function createStore(file = ':memory:'): Store {
   const db = new DatabaseSync(file);
 
@@ -317,7 +309,6 @@ export function createStore(file = ':memory:'): Store {
   try {
     db.exec(MIGRATION);
     addColumnIfMissing(db, 'audit_events', 'client_event_id', 'TEXT');
-    addColumnIfMissing(db, 'subscriptions', 'session_device_limit', 'INTEGER');
     addColumnIfMissing(db, 'refresh_tokens', 'device_label', 'TEXT');
     // Existing accounts inherit the defaults: they can read, see location and
     // see health, and nobody silently gains write.
@@ -326,6 +317,7 @@ export function createStore(file = ':memory:'): Store {
     addColumnIfMissing(db, 'users', 'can_location', 'INTEGER NOT NULL DEFAULT 1');
     addColumnIfMissing(db, 'users', 'can_health', 'INTEGER NOT NULL DEFAULT 1');
     addColumnIfMissing(db, 'batteries', 'status', "TEXT NOT NULL DEFAULT 'active'");
+    retireLegacyPlatformAdmins(db);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

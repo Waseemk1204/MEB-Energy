@@ -1,7 +1,7 @@
 import { createStore } from './db/client.js';
 import { secretFrom } from './auth/tokens.js';
 import { seedParameterDefinitions } from './policy/seed.js';
-import { bootstrapAdmin } from './admin/bootstrap.js';
+import { bootstrapCompany } from './company/bootstrap.js';
 import { parseOrigins } from './http/cors.js';
 import { buildServer } from './server.js';
 import type { Dispatcher } from './policy/writeService.js';
@@ -9,7 +9,7 @@ import type { Dispatcher } from './policy/writeService.js';
 /**
  * Process entrypoint.
  *
- * The dispatcher is a stub. Real commands travel Admin → Cloud → User's app →
+ * The dispatcher is a stub. Real commands travel administrator → cloud → technician's app →
  * BLE → gateway → UART → BMS (PRD §7.3), and the two hops after the cloud do
  * not exist yet. Rather than pretend, this refuses every dispatch — the policy
  * engine and the audit trail are still exercised end to end, and a refusal is
@@ -34,18 +34,21 @@ function requiredEnv(name: string): string {
 
 async function main(): Promise<void> {
   const port = Number(process.env.PORT ?? 3000);
-  const dbFile = process.env.DATABASE_FILE ?? 'knowyourev.db';
+  const dbFile = process.env.DATABASE_FILE ?? 'company.db';
 
   const store = createStore(dbFile);
   const seeded = seedParameterDefinitions(store);
 
-  // Only ever fires on a database with no users at all — see admin/bootstrap.
-  const bootstrap = await bootstrapAdmin(store, {
+  // Only ever fires on a database with no users at all — see company/bootstrap.
+  const bootstrap = await bootstrapCompany(store, {
+    companyName: process.env.COMPANY_NAME,
     email: process.env.BOOTSTRAP_ADMIN_EMAIL,
     password: process.env.BOOTSTRAP_ADMIN_PASSWORD,
   });
   if (bootstrap.kind === 'created') {
-    console.log(`Created the first administrator: ${bootstrap.email}`);
+    console.log(
+      `Created ${bootstrap.companyName} and its first administrator: ${bootstrap.email}`
+    );
   } else if (bootstrap.reason === 'not_configured') {
     const empty = store.get<{ n: number }>('SELECT COUNT(*) AS n FROM users');
     if ((empty?.n ?? 0) === 0) {
@@ -60,8 +63,8 @@ async function main(): Promise<void> {
   if (corsOrigins.length === 0) {
     console.warn(
       'CORS_ORIGINS is not set. The API will refuse every browser client, ' +
-        'including the admin console. Set it to the console origin, e.g. ' +
-        'CORS_ORIGINS=https://console.knowyourev.example'
+        'including the web app. Set it to the origin the app is served from, e.g. ' +
+        'CORS_ORIGINS=https://app.mebenergy.example'
     );
   }
 
@@ -82,7 +85,7 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
   await app.listen({ port, host: '0.0.0.0' });
-  console.log(`KnowyourEV backend listening on :${port} (db ${dbFile}, ${seeded} parameters)`);
+  console.log(`API listening on :${port} (db ${dbFile}, ${seeded} parameters)`);
 }
 
 main().catch((error) => {

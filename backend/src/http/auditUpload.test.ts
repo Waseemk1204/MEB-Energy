@@ -35,7 +35,7 @@ beforeEach(async () => {
   const hash = await hashPassword(PASSWORD, CHEAP);
 
   for (const [id, name] of [[ACME, 'Acme EV'], [RIVAL, 'Rival Ltd']] as const) {
-    seedCompany(store, id, name, {}, now);
+    seedCompany(store, id, name, now);
   }
   for (const [id, company, serial] of [
     [BATTERY, ACME, 'BAT-ACME-1'],

@@ -59,7 +59,7 @@ export function startSupportSession(
   targetUserId: string | null = null,
   now = Date.now()
 ): string {
-  if (principal.role !== 'admin') {
+  if (principal.role !== 'company') {
     throw new BrokerError('Only an administrator may open a support session', 'forbidden');
   }
 
@@ -103,7 +103,7 @@ export function endSupportSession(
     sessionId
   );
   if (!session) throw new BrokerError('Support session not found', 'not_found');
-  if (principal.role !== 'admin' || session.admin_user_id !== principal.userId) {
+  if (principal.role !== 'company' || session.admin_user_id !== principal.userId) {
     throw new BrokerError('Support session not found', 'not_found');
   }
 
@@ -165,7 +165,7 @@ export function issueCommand(
     sessionId
   );
   if (!session) throw new BrokerError('Support session not found', 'not_found');
-  if (principal.role !== 'admin' || session.admin_user_id !== principal.userId) {
+  if (principal.role !== 'company' || session.admin_user_id !== principal.userId) {
     throw new BrokerError('Support session not found', 'not_found');
   }
   if (session.ended_at !== null) {
@@ -316,7 +316,7 @@ export function completeCommand(
   return recordAudit(store, {
     companyId: command.company_id,
     actorUserId: command.issued_by,
-    actorRole: 'admin',
+    actorRole: 'company',
     batteryId: command.battery_id,
     parameterKey: command.parameter_key,
     newValue: String(command.value),

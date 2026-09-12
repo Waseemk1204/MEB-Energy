@@ -31,8 +31,9 @@ const RIVAL = 'company-rival';
 const BATTERY = 'bat-acme';
 const RIVAL_BATTERY = 'bat-rival';
 
-const admin: Principal = { userId: 'u-admin', role: 'admin', companyId: null };
-const otherAdmin: Principal = { userId: 'u-admin-2', role: 'admin', companyId: null };
+/** The company's administrators: inside the company, like everyone. */
+const admin: Principal = { userId: 'u-admin', role: 'company', companyId: ACME };
+const otherAdmin: Principal = { userId: 'u-admin-2', role: 'company', companyId: ACME };
 const tech: Principal = { userId: 'u-tech', role: 'user', companyId: ACME };
 const otherTech: Principal = { userId: 'u-tech-2', role: 'user', companyId: ACME };
 const rivalTech: Principal = { userId: 'u-rival', role: 'user', companyId: RIVAL };
@@ -62,7 +63,7 @@ beforeEach(() => {
     [ACME, 'Acme EV'],
     [RIVAL, 'Rival Fleet'],
   ] as const) {
-    seedCompany(store, id, name, {}, now);
+    seedCompany(store, id, name, now);
   }
   for (const [id, company, serial] of [
     [BATTERY, ACME, 'BAT-ACME-1'],
@@ -75,8 +76,8 @@ beforeEach(() => {
     );
   }
   for (const [id, company, role] of [
-    ['u-admin', null, 'admin'],
-    ['u-admin-2', null, 'admin'],
+    ['u-admin', ACME, 'company'],
+    ['u-admin-2', ACME, 'company'],
     ['u-tech', ACME, 'user'],
     ['u-tech-2', ACME, 'user'],
     ['u-rival', RIVAL, 'user'],
@@ -109,8 +110,9 @@ describe('opening a support session', () => {
     assert.throws(() => startSupportSession(store, admin, 'bat-nowhere'), TenantScopeError);
   });
 
-  it('lets an administrator open one on any tenant’s battery', () => {
-    assert.ok(startSupportSession(store, admin, RIVAL_BATTERY));
+  /** Nobody is platform-wide: another company's pack is simply not there. */
+  it('refuses even an administrator another company’s battery', () => {
+    assert.throws(() => startSupportSession(store, admin, RIVAL_BATTERY), TenantScopeError);
   });
 });
 
@@ -363,7 +365,7 @@ describe('reporting the outcome', () => {
     completeCommand(store, tech, command.id, 'success');
     const entry = queryAudit(store, admin)[0];
     assert.equal(entry?.actor_user_id, 'u-admin');
-    assert.equal(entry?.actor_role, 'admin');
+    assert.equal(entry?.actor_role, 'company');
     assert.equal(entry?.result, 'success');
   });
 

@@ -35,10 +35,10 @@ beforeEach(async () => {
   const now = Date.now();
   const hash = await hashPassword(PASSWORD, CHEAP);
 
-  seedCompany(store, ACME, 'Acme EV', {}, now);
+  seedCompany(store, ACME, 'Acme EV', now);
   for (const [id, company, email, role] of [
-    ['u-admin', null, 'ops@knowyourev.example', 'admin'],
     ['u-owner', ACME, 'owner@acme.example', 'company'],
+    ['u-owner-2', ACME, 'owner2@acme.example', 'company'],
     ['u-tech', ACME, 'tech@acme.example', 'user'],
   ] as const) {
     store.run(
@@ -153,8 +153,18 @@ describe('who may change permissions', () => {
     assert.equal(res.statusCode, 403);
   });
 
-  it('lets a platform administrator change anyone', async () => {
-    assert.equal((await setPerms('ops@knowyourev.example', 'u-tech', { write: true })).statusCode, 200);
+  it('lets any administrator change a technician', async () => {
+    assert.equal((await setPerms('owner2@acme.example', 'u-tech', { write: true })).statusCode, 200);
+  });
+
+  /**
+   * An administrator holds every permission implicitly. Writing the columns
+   * would produce a screen that says one thing and a server that does another.
+   */
+  it('refuses to set permissions on another administrator', async () => {
+    const res = await setPerms('owner@acme.example', 'u-owner-2', { write: false });
+    assert.equal(res.statusCode, 403);
+    assert.equal(res.json().error, 'administrator');
   });
 
   /**
@@ -163,17 +173,12 @@ describe('who may change permissions', () => {
    * who does.
    */
   it('hides another tenant’s user behind a 404', async () => {
-    seedCompany(store, 'company-rival', 'Rival', {}, Date.now());
+    seedCompany(store, 'company-rival', 'Rival', Date.now());
     store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
       'u-rival', 'company-rival', 'tech@rival.example', 'R', 'user', 'x', 'active', Date.now()
     );
     const res = await setPerms('owner@acme.example', 'u-rival', { write: true });
-    assert.equal(res.statusCode, 404);
-  });
-
-  it('hides a platform administrator from a company owner', async () => {
-    const res = await setPerms('owner@acme.example', 'u-admin', { write: false });
     assert.equal(res.statusCode, 404);
   });
 
@@ -186,59 +191,70 @@ describe('who may change permissions', () => {
 describe('an administrator', () => {
   /**
    * Permissions do not apply to an administrator, but presence still does.
-   * An admin write happens inside a support session with a technician at the
-   * pack (PRD 7.3), so this is refused for that reason and not for want of a
-   * permission -- which is exactly the distinction worth pinning.
+   * An administrator's write through this route happens inside a support
+   * session with a technician at the pack (PRD 7.3), so this is refused for
+   * that reason and not for want of a permission -- which is exactly the
+   * distinction worth pinning.
    */
   it('is never refused for lacking a permission', async () => {
-    const res = await writeParam('ops@knowyourev.example');
+    const token = await tokenFor('owner@acme.example');
+    const res = await app.inject({
+      method: 'POST',
+      url: `/batteries/${batteryId}/parameters/cell_ovp`,
+      headers: auth(token),
+      payload: { value: 3.8, reason: 'Vendor bulletin' },
+    });
     assert.notEqual(res.statusCode, 403);
     assert.equal(res.json().denialCode, 'session_required_for_admin_write');
+  });
+
+  /** An administrator can also stand at a pack themselves, like anyone. */
+  it('may write with a live session of their own', async () => {
+    assert.equal((await writeParam('owner@acme.example')).statusCode, 200);
+  });
+
+  it('holds every permission whatever the columns say', async () => {
+    store.run('UPDATE users SET can_read = 0, can_write = 0 WHERE id = ?', 'u-owner');
+    assert.equal((await readBattery('owner@acme.example')).statusCode, 200);
   });
 });
 
 /**
- * The user list is what the drill-down reads. It carries permissions so that
- * showing twenty people does not become twenty-one requests, and the company
- * filter narrows what is already scoped rather than replacing the scope.
+ * The user list is what the people screen reads. It carries permissions so
+ * that showing twenty people does not become twenty-one requests.
  */
-describe('listing users for the drill-down', () => {
-  const listAs = async (email: string, companyId?: string) => {
+describe('listing users for the people screen', () => {
+  const listAs = async (email: string, query = '') => {
     const token = (
       await app.inject({ method: 'POST', url: '/auth/login', payload: { email, password: PASSWORD } })
     ).json().accessToken as string;
-    return app.inject({
-      method: 'GET',
-      url: companyId ? `/users?companyId=${companyId}` : '/users',
-      headers: auth(token),
-    });
+    return app.inject({ method: 'GET', url: `/users${query}`, headers: auth(token) });
   };
 
   it('carries each person’s permissions', async () => {
-    const users = (await listAs('ops@knowyourev.example')).json().users as Record<string, number>[];
+    const users = (await listAs('owner@acme.example')).json().users as Record<string, number>[];
     const tech = users.find((u) => u.id === ('u-tech' as unknown as number))!;
     assert.equal(tech.can_read, 1);
     assert.equal(tech.can_write, 0);
   });
 
-  it('narrows to one company for an administrator', async () => {
-    const users = (await listAs('ops@knowyourev.example', ACME)).json().users as { id: string }[];
-    assert.deepEqual(users.map((u) => u.id).sort(), ['u-owner', 'u-tech']);
+  it('lists the whole company', async () => {
+    const users = (await listAs('owner@acme.example')).json().users as { id: string }[];
+    assert.deepEqual(users.map((u) => u.id).sort(), ['u-owner', 'u-owner-2', 'u-tech']);
   });
 
   /**
-   * The filter sits on top of the tenant scope. A company asking for somebody
-   * else's id gets their own rows back, not an error and not the other
-   * company's — the scope clause is still in the query.
+   * A query naming another company is ignored: the scope clause is in the
+   * query regardless, so the caller gets their own rows and nobody else's.
    */
-  it('cannot be used by a company to reach another tenant', async () => {
-    seedCompany(store, 'company-rival', 'Rival', {}, Date.now());
+  it('cannot be used to reach another company', async () => {
+    seedCompany(store, 'company-rival', 'Rival', Date.now());
     store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
       'u-rival', 'company-rival', 'tech@rival.example', 'R', 'user', 'x', 'active', Date.now()
     );
 
-    const users = (await listAs('owner@acme.example', 'company-rival')).json().users as {
+    const users = (await listAs('owner@acme.example', '?companyId=company-rival')).json().users as {
       id: string;
     }[];
     assert.ok(!users.some((u) => u.id === 'u-rival'));

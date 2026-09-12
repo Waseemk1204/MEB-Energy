@@ -11,13 +11,7 @@ import {
   verifyAccessToken,
 } from './auth/tokens.js';
 import { requirePermission, permissionsOf, setPermissions } from './auth/permissions.js';
-import {
-  DEFAULT_SESSION_DEVICES,
-  describeDevice,
-  enforceDeviceLimit,
-  labelFor,
-  sessionDeviceUsage,
-} from './auth/sessionDevices.js';
+import { labelFor } from './auth/deviceLabel.js';
 import { needsRehash, hashPassword, verifyPassword } from './auth/password.js';
 import { capabilityProfile } from './policy/seed.js';
 import { performWrite, type Dispatcher } from './policy/writeService.js';
@@ -34,40 +28,31 @@ import {
   notFound,
   toApiError,
   tooManyRequests,
-  entitlementRefusal,
   unauthorized,
 } from './http/errors.js';
 import { createLimiter, type Limiter } from './http/rateLimit.js';
 import { InvitationError, acceptInvitation } from './auth/invitations.js';
 import { registerCors } from './http/cors.js';
-import {
-  DEFAULT_DEVICE_LIMIT,
-  adjustLimits,
-  entitlementOf,
-  grantAccess,
-  revokeAccess,
-} from './admin/entitlement.js';
 import { registerSecurityHeaders } from './http/headers.js';
 import {
-  batteryUsage,
-  createCompany,
-  deviceUsage,
-  removeUser,
+  companyOf,
+  companyOverview,
   createUser,
   listDevices,
   listUsers,
   registerBattery,
   registerDevice,
-  seatUsage,
-  platformOverview,
   reinstateBattery,
+  removeUser,
+  renameCompany,
   retireBattery,
   updateBattery,
+  updateUser,
   visibleUser,
   setDeviceSecurityStatus,
   setUserStatus,
-} from './admin/service.js';
-import { canManageUsers, platformWide } from './db/tenancy.js';
+} from './company/service.js';
+import { isRole } from './db/tenancy.js';
 import { ingestSamples, lastReadings, queryHistory, type Sample } from './telemetry/service.js';
 import {
   claimCommands,
@@ -95,16 +80,16 @@ export interface ServerDeps {
   loginLimiter?: Limiter;
   inviteLimiter?: Limiter;
   /**
-   * Origins the admin console may be served from. Empty by default, which
-   * serves no browser at all — see http/cors.ts for why that is the safe
-   * default rather than an oversight.
+   * Origins the web app may be served from. Empty by default, which serves no
+   * browser at all — see http/cors.ts for why that is the safe default rather
+   * than an oversight.
    */
   corsOrigins?: string[];
 }
 
 interface UserRow {
   id: string;
-  company_id: string | null;
+  company_id: string;
   email: string;
   display_name: string;
   role: Principal['role'];
@@ -133,7 +118,11 @@ const writeBody = z.object({
 });
 
 const batteryBody = z.object({
-  companyId: z.string().min(1),
+  // Optional: the caller's own company is the only one there is. Accepted so
+  // an older client that still sends it keeps working, and checked so a
+  // client that sends somebody else's is refused rather than quietly
+  // redirected.
+  companyId: z.string().min(1).optional(),
   serial: z.string().min(1).max(64),
   chemistry: z.string().min(1).max(64),
   cellCount: z.number().int().min(1).max(512),
@@ -141,35 +130,8 @@ const batteryBody = z.object({
   capacityAh: z.number().positive().nullable().optional(),
 });
 
-/**
- * Switching a company's access on. Payment happened elsewhere; this is the
- * administrator recording that it did.
- */
-const grantBody = z.object({
-  seatLimit: z.number().int().min(1).max(100_000),
-  deviceLimit: z.number().int().min(1).max(1_000).optional(),
-  sessionDeviceLimit: z.number().int().min(1).max(100).optional(),
-  batteryLimit: z.number().int().min(1).nullable().optional(),
-});
-
-/** Raising or lowering limits mid-term, without restarting the term. */
-const limitsBody = z
-  .object({
-    seatLimit: z.number().int().min(1).max(100_000).optional(),
-    deviceLimit: z.number().int().min(1).max(1_000).optional(),
-    sessionDeviceLimit: z.number().int().min(1).max(100).optional(),
-    batteryLimit: z.number().int().min(1).nullable().optional(),
-    // Moving the end of the term, not restarting it from today.
-    renewalDate: z.number().int().positive().optional(),
-  })
-  .refine((b) => Object.keys(b).length > 0, { message: 'nothing to change' });
-
 const companyBody = z.object({
-  name: z.string().min(1).max(200),
-  seatLimit: z.number().int().min(1).max(100_000),
-  deviceLimit: z.number().int().min(1).nullable().optional(),
-  batteryLimit: z.number().int().min(1).nullable().optional(),
-  renewalDate: z.number().int().positive().optional(),
+  name: z.string().trim().min(1).max(200),
 });
 
 const permissionsBody = z
@@ -196,10 +158,19 @@ const batteryPatchBody = z
   .refine((b) => Object.keys(b).length > 0, { message: 'nothing to change' });
 
 const userBody = z.object({
-  companyId: z.string().min(1).nullable(),
+  companyId: z.string().min(1).optional(),
   email: z.string().email().max(320),
   displayName: z.string().min(1).max(200),
-  role: z.enum(['admin', 'company', 'user']),
+  /** 'company' is an administrator, 'user' a technician. */
+  role: z.enum(['company', 'user']).default('user'),
+  permissions: z
+    .object({
+      read: z.boolean().optional(),
+      write: z.boolean().optional(),
+      location: z.boolean().optional(),
+      health: z.boolean().optional(),
+    })
+    .optional(),
   /**
    * Omit for the normal path: the account is created by invitation and the new
    * user sets their own first password, which nobody else ever sees.
@@ -211,6 +182,13 @@ const userBody = z.object({
 });
 
 const statusBody = z.object({ status: z.enum(['active', 'suspended']) });
+
+const userPatchBody = z
+  .object({
+    displayName: z.string().trim().min(1).max(200).optional(),
+    email: z.string().email().max(320).optional(),
+  })
+  .refine((b) => Object.keys(b).length > 0, { message: 'nothing to change' });
 
 const sampleSchema = z.object({
   recordedAt: z.number().int().positive(),
@@ -280,7 +258,7 @@ const commandResultBody = z.object({
 });
 
 const deviceBody = z.object({
-  companyId: z.string().min(1),
+  companyId: z.string().min(1).optional(),
   serial: z.string().min(1).max(64),
   hardwareRevision: z.string().min(1).max(64),
   firmwareVersion: z.string().min(1).max(64),
@@ -348,14 +326,10 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
   /* ------------------------------------------------------------------ auth */
 
-  /** The tenant a user belongs to, as the client needs to display it. */
-  const companyOf = (s: Store, companyId: string | null) =>
-    companyId === null
-      ? null
-      : (s.get<{ id: string; name: string }>(
-          'SELECT id, name FROM companies WHERE id = ?',
-          companyId
-        ) ?? null);
+  /** The company, as the client needs to display it. */
+  const companyNamed = (s: Store, companyId: string) =>
+    s.get<{ id: string; name: string }>('SELECT id, name FROM companies WHERE id = ?', companyId) ??
+    null;
 
   app.post('/auth/login', async (request, reply) => {
     const { email, password } = parse(loginBody, request.body);
@@ -373,25 +347,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const hash = user?.password_hash ?? '$scrypt$0$0$0$aaaa$bbbb';
     const valid = await verifyPassword(password, hash);
 
-    if (!user || !valid || user.status !== 'active') {
+    // A role this application does not know — a platform administrator from
+    // before it was one company's — reads as a wrong password. Same message,
+    // for the same enumeration reason.
+    if (!user || !valid || user.status !== 'active' || !isRole(user.role)) {
       throw unauthorized('Email or password is incorrect');
-    }
-
-    /*
-     * Whether the *company* may be used, which sign-in never asked before. A
-     * suspended company or a lapsed plan left every one of its users working
-     * normally.
-     *
-     * Told apart from a wrong password on purpose. Credentials read
-     * identically whether or not an account exists, because that is an
-     * enumeration oracle — but somebody whose employer's subscription has
-     * lapsed has already proved who they are, and "your password is wrong" is
-     * both false and unactionable. They need to know to call their
-     * administrator.
-     */
-    if (user.company_id !== null) {
-      const entitlement = entitlementOf(store, user.company_id);
-      if (!entitlement.ok) throw entitlementRefusal(entitlement.code);
     }
 
     loginLimiter.reset(key);
@@ -407,31 +367,15 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       role: user.role,
       companyId: user.company_id,
     };
-    /*
-     * The concurrent-device cap. A company owner's login is the credential most
-     * likely to end up shared, and this is what stops one paid account becoming
-     * a floating licence for a whole depot.
-     *
-     * Signing out the oldest rather than refusing the newest: there is no email
-     * and no self-service recovery here, so a refusal would strand an owner the
-     * day they replace a phone. And an unexpected sign-out is a signal worth
-     * having — somebody who did not sign in anywhere new has just learned that
-     * somebody else did.
-     *
-     * Runs after the password and the entitlement, never before: a failed
-     * sign-in must not be able to sign anybody out.
-     */
+    // There is no cap on how many devices anybody is signed in on. The label
+    // is kept so a session can be named, nothing more.
     const label = labelFor(request.headers['user-agent']);
-    const evicted = enforceDeviceLimit(store, user);
     const refresh = issueRefreshToken(store, user.id, Date.now(), label);
 
     return reply.send({
       accessToken: await issueAccessToken(principal, secret),
       refreshToken: refresh.token,
       expiresAt: refresh.expiresAt,
-      // Told, not hidden. The whole value of evicting rather than refusing is
-      // that the person who did not expect it finds out.
-      signedOut: evicted.map((device) => describeDevice(device)),
       user: {
         id: user.id,
         email: user.email,
@@ -439,11 +383,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         role: user.role,
         companyId: user.company_id,
       },
-      // The client shows the tenant's name in its header. Without this it can
-      // only fall back to a built-in default, which means every tenant sees
-      // whichever name that happens to be. An administrator belongs to no
-      // company, so null here is a real answer, not a missing one.
-      company: companyOf(store, user.company_id),
+      // The client shows the company's name in its header. Without this it can
+      // only fall back to a built-in default.
+      company: companyNamed(store, user.company_id),
     });
   });
 
@@ -452,14 +394,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const rotated = rotateRefreshToken(store, refreshToken);
 
     const user = store.get<UserRow>('SELECT * FROM users WHERE id = ?', rotated.userId);
-    if (!user || user.status !== 'active') throw new AuthError('Account is not active', 'revoked');
-
-    // Re-checked on every renewal, so a company suspended or expired mid-session
-    // loses access within the access token's fifteen minutes rather than
-    // whenever somebody happens to sign out.
-    if (user.company_id !== null) {
-      const entitlement = entitlementOf(store, user.company_id);
-      if (!entitlement.ok) throw entitlementRefusal(entitlement.code);
+    if (!user || user.status !== 'active' || !isRole(user.role)) {
+      throw new AuthError('Account is not active', 'revoked');
     }
 
     const principal: Principal = { userId: user.id, role: user.role, companyId: user.company_id };
@@ -467,7 +403,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       accessToken: await issueAccessToken(principal, secret),
       refreshToken: rotated.token,
       expiresAt: rotated.expiresAt,
-      company: companyOf(store, user.company_id),
+      company: companyNamed(store, user.company_id),
     });
   });
 
@@ -486,6 +422,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       displayName: user!.display_name,
       role: user!.role,
       companyId: user!.company_id,
+      permissions: permissionsOf(store, principal),
     });
   });
 
@@ -559,11 +496,6 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
   app.post<{ Params: { id: string } }>('/batteries/:id/session', async (request, reply) => {
     const principal = await principalOf(request);
-    // An admin has no BLE link of their own and never will; the session that
-    // matters belongs to the technician standing at the pack.
-    if (principal.role === 'admin') {
-      throw forbidden('Administrators do not hold BLE sessions', 'admin_has_no_session');
-    }
     const battery = ownBattery(principal, request.params.id);
     const id = openSession(store, principal, battery.id, battery.company_id);
     return reply.send({ sessionId: id, batteryId: battery.id });
@@ -616,8 +548,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
       const body = parse(writeBody, request.body);
 
-      // Only an admin may claim a force push; asking for one is not a grant.
-      if (body.forcePush && principal.role !== 'admin') {
+      // Only an administrator may claim a force push; asking for one is not a
+      // grant.
+      if (body.forcePush && principal.role !== 'company') {
         throw forbidden('Force Push is available to administrators only', 'requires_admin');
       }
 
@@ -769,105 +702,51 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     }
   );
 
-  /* -------------------------------------------------------------- companies */
+  /* ---------------------------------------------------------------- company */
 
-  app.post('/companies', async (request, reply) => {
+  /**
+   * The company itself: its name, and the numbers an administrator opens the
+   * app to see. Readable by everyone who belongs to it — a technician's header
+   * shows the same name.
+   */
+  app.get('/company', async (request, reply) => {
     const principal = await principalOf(request);
-    const body = parse(companyBody, request.body);
-    const created = createCompany(store, principal, body);
-    return reply.status(201).send(created);
+    const company = companyOf(store, principal);
+    return reply.send({
+      id: company.id,
+      name: company.name,
+      createdAt: company.created_at,
+      overview: companyOverview(store, company.id),
+    });
   });
 
-  app.get('/companies', async (request, reply) => {
+  /** Rename the company. Administrators only. */
+  app.patch('/company', async (request, reply) => {
     const principal = await principalOf(request);
-    // Not a tenant-scoped table: the listing is cross-tenant by definition, so
-    // the admin check is explicit rather than implied by a scope. A tenant gets
-    // 404, not 403 — it has no business learning this endpoint exists.
-    if (principal.role !== 'admin') throw notFound('Resource');
-    platformWide(principal);
-    return reply.send({
-      companies: store.all('SELECT id, name, status, created_at FROM companies ORDER BY name ASC'),
-    });
+    const { name } = parse(companyBody, request.body);
+    const company = renameCompany(store, principal, name);
+    return reply.send({ id: company.id, name: company.name, createdAt: company.created_at });
   });
 
   /* ------------------------------------------------------------------ users */
 
   /**
-   * The platform at a glance. Administrators only — a company owner asking
-   * gets 404 rather than 403, so the route does not confirm it exists.
+   * The caller's own company is the only one a request may name. A body that
+   * names another is refused as not found rather than corrected — a client
+   * that thinks it is somewhere else should find out.
    */
-  app.get('/platform/overview', async (request, reply) => {
-    const principal = await principalOf(request);
-    if (principal.role !== 'admin') throw notFound('Overview');
-    return reply.send(platformOverview(store));
-  });
-
-  /**
-   * Grant a company a year's access.
-   *
-   * Administrators only, and deliberately not something a company can do for
-   * itself — this is the point where taking payment outside the system becomes
-   * access inside it.
-   */
-  app.post<{ Params: { id: string } }>('/companies/:id/access', async (request, reply) => {
-    const principal = await principalOf(request);
-    if (principal.role !== 'admin') throw notFound('Company');
-
-    const body = parse(grantBody, request.body);
-    if (!store.get('SELECT id FROM companies WHERE id = ?', request.params.id)) {
-      throw notFound('Company');
-    }
-
-    const granted = grantAccess(store, request.params.id, body);
-    return reply.status(201).send({
-      ...granted,
-      seatLimit: body.seatLimit,
-      deviceLimit: body.deviceLimit ?? DEFAULT_DEVICE_LIMIT,
-      sessionDeviceLimit: body.sessionDeviceLimit ?? DEFAULT_SESSION_DEVICES,
-    });
-  });
-
-  /** Switch it off. Distinct from letting a term lapse, and refused as such. */
-  app.delete<{ Params: { id: string } }>('/companies/:id/access', async (request, reply) => {
-    const principal = await principalOf(request);
-    if (principal.role !== 'admin') throw notFound('Company');
-
-    revokeAccess(store, request.params.id);
-    return reply.status(204).send();
-  });
-
-  /** Change what a live plan allows without buying another year. */
-  app.patch<{ Params: { id: string } }>('/companies/:id/limits', async (request, reply) => {
-    const principal = await principalOf(request);
-    if (principal.role !== 'admin') throw notFound('Company');
-
-    adjustLimits(store, request.params.id, parse(limitsBody, request.body));
-    return reply.send(entitlementOf(store, request.params.id));
-  });
-
-  /**
-   * What a company is entitled to and how much of it is used.
-   *
-   * Readable by the company itself as well as an administrator: a company owner
-   * about to add a user needs to know whether they can.
-   */
-  app.get<{ Params: { id: string } }>('/companies/:id/entitlement', async (request, reply) => {
-    const principal = await principalOf(request);
-    if (!canManageUsers(principal, request.params.id)) throw notFound('Company');
-
-    return reply.send({
-      ...entitlementOf(store, request.params.id),
-      seats: seatUsage(store, request.params.id),
-      devices: deviceUsage(store, request.params.id),
-      sessionDevices: sessionDeviceUsage(store, request.params.id),
-      batteries: batteryUsage(store, request.params.id),
-    });
-  });
+  const ownCompanyId = (principal: Principal, named: string | undefined): string => {
+    if (named !== undefined && named !== principal.companyId) throw notFound('Company');
+    return principal.companyId;
+  };
 
   app.post('/users', async (request, reply) => {
     const principal = await principalOf(request);
     const body = parse(userBody, request.body);
-    const created = await createUser(store, principal, body);
+    const created = await createUser(store, principal, {
+      ...body,
+      companyId: ownCompanyId(principal, body.companyId),
+    });
 
     // Deliberately does not echo the request: never reflect a password back.
     // The invitation token is returned exactly once, here, and is never
@@ -904,7 +783,12 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         role: user.role,
         companyId: user.company_id,
       };
-      const refresh = issueRefreshToken(store, user.id);
+      const refresh = issueRefreshToken(
+        store,
+        user.id,
+        Date.now(),
+        labelFor(request.headers['user-agent'])
+      );
 
       // Signed straight in: making someone set a password and then immediately
       // type it again is friction with no security value.
@@ -919,7 +803,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           role: user.role,
           companyId: user.company_id,
         },
-        company: companyOf(store, user.company_id),
+        company: companyNamed(store, user.company_id),
       });
     } catch (error) {
       if (error instanceof InvitationError && error.code !== 'weak_password') {
@@ -931,12 +815,16 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     }
   });
 
-  app.get<{ Querystring: { companyId?: string } }>('/users', async (request, reply) => {
+  app.get('/users', async (request, reply) => {
     const principal = await principalOf(request);
-    // The filter narrows what is already scoped; it cannot widen it.
-    return reply.send({
-      users: listUsers(store, principal, { companyId: request.query.companyId }),
-    });
+    return reply.send({ users: listUsers(store, principal) });
+  });
+
+  /** Who somebody is. Administrators only, and only inside the company. */
+  app.patch<{ Params: { id: string } }>('/users/:id', async (request, reply) => {
+    const principal = await principalOf(request);
+    updateUser(store, principal, request.params.id, parse(userPatchBody, request.body));
+    return reply.status(204).send();
   });
 
   app.patch<{ Params: { id: string } }>('/users/:id/status', async (request, reply) => {
@@ -947,12 +835,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   });
 
   /**
-   * What a user may do, set by their company.
+   * What a user may do, set by an administrator.
    *
-   * Scoped through the same rule that guards status changes, so a company can
-   * only reach its own people and an administrator can reach anyone. Takes
-   * effect on the next request the user makes, not at their next token
-   * renewal, because permissions are read per request rather than carried.
+   * Scoped through the same rule that guards status changes. Takes effect on
+   * the next request the user makes, not at their next token renewal, because
+   * permissions are read per request rather than carried.
    */
   app.patch<{ Params: { id: string } }>('/users/:id/permissions', async (request, reply) => {
     const principal = await principalOf(request);
@@ -964,16 +851,30 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     if (!target) throw notFound('User');
 
     /*
-     * Nobody edits their own permissions. A company owner who could grant
-     * themselves write would make the setting decorative, and an owner who
-     * could remove their own read would lock themselves out with no way back.
+     * Nobody edits their own permissions. An administrator who could grant
+     * themselves write would make the setting decorative, and one who could
+     * remove their own read would lock themselves out with no way back.
      */
     if (target.id === principal.userId) {
       throw forbidden('You cannot change your own permissions');
     }
 
+    /*
+     * An administrator holds every permission implicitly; the columns are
+     * ignored for them. Writing to those columns would produce a screen that
+     * says one thing and a server that does another.
+     */
+    if (target.role === 'company') {
+      throw forbidden(
+        'An administrator holds every permission. Make them a technician to limit what they may do.',
+        'administrator'
+      );
+    }
+
     setPermissions(store, target.id, patch);
-    return reply.send(permissionsOf(store, { ...principal, userId: target.id, role: target.role }));
+    return reply.send(
+      permissionsOf(store, { ...principal, userId: target.id, role: target.role })
+    );
   });
 
   /**
@@ -987,24 +888,19 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     return reply.send(result);
   });
 
-  app.get<{ Params: { id: string } }>('/companies/:id/seats', async (request, reply) => {
-    const principal = await principalOf(request);
-    if (principal.role !== 'admin' && principal.companyId !== request.params.id) {
-      throw notFound('Company');
-    }
-    return reply.send(seatUsage(store, request.params.id));
-  });
-
   /* ---------------------------------------------------------------- devices */
 
   app.post('/batteries', async (request, reply) => {
     const principal = await principalOf(request);
     const body = parse(batteryBody, request.body);
-    const id = registerBattery(store, principal, body);
+    const id = registerBattery(store, principal, {
+      ...body,
+      companyId: ownCompanyId(principal, body.companyId),
+    });
     return reply.status(201).send({ batteryId: id });
   });
 
-  /** Edit a pack's details. Scoped: a company edits its own, an admin any. */
+  /** Edit a pack's details. Administrators only. */
   app.patch<{ Params: { id: string } }>('/batteries/:id', async (request, reply) => {
     const principal = await principalOf(request);
     updateBattery(store, principal, request.params.id, parse(batteryPatchBody, request.body));
@@ -1027,18 +923,14 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     return reply.status(204).send();
   });
 
-  app.get<{ Params: { id: string } }>('/companies/:id/batteries', async (request, reply) => {
-    const principal = await principalOf(request);
-    if (!canManageUsers(principal, request.params.id)) {
-      throw forbidden('Not permitted to view that company', 'forbidden');
-    }
-    return reply.send(batteryUsage(store, request.params.id));
-  });
-
   app.post('/devices', async (request, reply) => {
     const principal = await principalOf(request);
     const body = parse(deviceBody, request.body);
-    return reply.status(201).send({ id: registerDevice(store, principal, body) });
+    const id = registerDevice(store, principal, {
+      ...body,
+      companyId: ownCompanyId(principal, body.companyId),
+    });
+    return reply.status(201).send({ id });
   });
 
   app.get('/devices', async (request, reply) => {

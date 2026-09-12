@@ -41,7 +41,7 @@ const seedUsers = async () => {
    * the technicians here could not write, and each of these tests would fail
    * for a reason it is not about.
    */
-  const insert = (id: string, company: string | null, email: string, role: string, status = 'active') =>
+  const insert = (id: string, company: string, email: string, role: string, status = 'active') =>
     store.run(
       `INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at,
                           can_read, can_write, can_location, can_health)
@@ -57,7 +57,8 @@ const seedUsers = async () => {
     );
   insert('u-acme', ACME, 'field@acme.example', 'user');
   insert('u-rival', RIVAL, 'field@rival.example', 'user');
-  insert('u-admin', null, 'admin@knowyourev.example', 'admin');
+  // The company's administrator, inside the company like everyone.
+  insert('u-admin', ACME, 'admin@acme.example', 'company');
   insert('u-suspended', ACME, 'gone@acme.example', 'user', 'suspended');
 };
 
@@ -70,7 +71,7 @@ beforeEach(async () => {
     [ACME, 'Acme EV'],
     [RIVAL, 'Rival Fleet'],
   ] as const) {
-    seedCompany(store, id, name, {}, now);
+    seedCompany(store, id, name, now);
   }
   for (const [id, company, serial] of [
     [ACME_BATTERY, ACME, 'BAT-ACME-1'],
@@ -282,10 +283,11 @@ describe('tenant isolation over HTTP', () => {
     assert.deepEqual(foreign.json(), missing.json());
   });
 
-  it('lets an admin see every tenant', async () => {
-    const { accessToken } = await login('admin@knowyourev.example');
+  /** Nobody is platform-wide: an administrator sees the company's fleet and no other. */
+  it('shows an administrator only the company’s own packs', async () => {
+    const { accessToken } = await login('admin@acme.example');
     const res = await app.inject({ method: 'GET', url: '/batteries', headers: auth(accessToken) });
-    assert.equal(res.json().batteries.length, 2);
+    assert.equal(res.json().batteries.length, 1);
   });
 });
 
@@ -380,7 +382,7 @@ describe('writing a parameter', () => {
   });
 
   /** Asking for a Force Push is not the same as being granted one. */
-  it('refuses Force Push from a non-admin', async () => {
+  it('refuses Force Push from a technician', async () => {
     const { accessToken } = await login('field@acme.example');
     await openSessionVia(accessToken);
     const res = await write(accessToken, ACME_BATTERY, 'cell_ovp', {
@@ -391,17 +393,17 @@ describe('writing a parameter', () => {
     assert.equal(res.json().error, 'requires_admin');
   });
 
-  /** The admin's command rides the technician's link, never their own. */
-  it('allows Force Push from an admin while a technician is on site', async () => {
+  /** The administrator's command rides the technician's link, never their own. */
+  it('allows Force Push from an administrator while a technician is on site', async () => {
     const field = await login('field@acme.example');
     await openSessionVia(field.accessToken);
-    const { accessToken } = await login('admin@knowyourev.example');
+    const { accessToken } = await login('admin@acme.example');
     const res = await write(accessToken, ACME_BATTERY, 'cell_ovp', { value: 3.8, forcePush: true });
     assert.equal(res.statusCode, 200);
   });
 
-  it('still refuses an admin Force Push with nobody on site', async () => {
-    const { accessToken } = await login('admin@knowyourev.example');
+  it('still refuses an administrator’s Force Push with nobody on site', async () => {
+    const { accessToken } = await login('admin@acme.example');
     const res = await write(accessToken, ACME_BATTERY, 'cell_ovp', {
       value: 3.8,
       forcePush: true,
@@ -492,13 +494,14 @@ describe('login tells the client which tenant it is in', () => {
     assert.equal(res.json().company.name, 'Acme EV');
   });
 
-  it('sends null for an administrator, who belongs to none', async () => {
+  it('names it for an administrator too, who belongs to it like everyone', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { email: 'admin@knowyourev.example', password: PASSWORD },
+      payload: { email: 'admin@acme.example', password: PASSWORD },
     });
-    assert.equal(res.json().company, null);
+    assert.equal(res.json().company.name, 'Acme EV');
+    assert.equal(res.json().user.role, 'company');
   });
 
   it('keeps naming it after a refresh, so a renewed session is not anonymous', async () => {
@@ -770,9 +773,7 @@ describe('the fleet query itself is bounded', () => {
     const server = buildServer({ store: recording, secret: SECRET, dispatcher });
 
     const now = Date.now();
-    // Through the fixture: a company with no subscription can no longer be
-    // signed into, which is the entitlement check doing its job.
-    seedCompany(spied, 'c9', 'C', {}, now);
+    seedCompany(spied, 'c9', 'C', now);
     spied.run(
       `INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at,
                           can_read, can_write, can_location, can_health)

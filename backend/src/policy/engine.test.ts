@@ -16,7 +16,8 @@ const BMS = 'JBD SP24S004';
 
 const user: Principal = { userId: 'u1', role: 'user', companyId: ACME };
 const company: Principal = { userId: 'c1', role: 'company', companyId: ACME };
-const admin: Principal = { userId: 'a1', role: 'admin', companyId: null };
+/** The company's administrator: the top of the hierarchy, and inside the company. */
+const admin: Principal = { userId: 'a1', role: 'company', companyId: ACME };
 
 const definition = (over: Partial<ParameterDefinition> = {}): ParameterDefinition => ({
   parameterKey: 'cell_ovp',
@@ -103,14 +104,7 @@ describe('roles', () => {
     );
   });
 
-  it('refuses it to a company principal too', () => {
-    assert.equal(
-      denied(evaluateWrite(company, definition({ requiresAdmin: true }), request())),
-      'requires_admin'
-    );
-  });
-
-  it('allows it to an admin', () => {
+  it('allows it to the company administrator', () => {
     assert.equal(
       evaluateWrite(admin, definition({ requiresAdmin: true }), request()).allowed,
       true
@@ -133,10 +127,14 @@ describe('tenancy', () => {
     assert.match((d as { message: string }).message, /not found/);
   });
 
-  it('lets an admin write across tenants', () => {
+  /**
+   * Nobody is platform-wide any more. An administrator is the company's, and
+   * a pack that is not the company's is not theirs to write.
+   */
+  it('refuses even an administrator a write across tenants', () => {
     assert.equal(
-      evaluateWrite(admin, definition(), request({ targetCompanyId: RIVAL })).allowed,
-      true
+      denied(evaluateWrite(admin, definition(), request({ targetCompanyId: RIVAL }))),
+      'wrong_tenant'
     );
   });
 });
@@ -214,12 +212,13 @@ describe('write source attribution', () => {
     assert.equal(d.allowed && d.source, 'local');
   });
 
-  it('tags a company principal’s write as local', () => {
-    const d = evaluateWrite(company, definition(), request());
-    assert.equal(d.allowed && d.source, 'local');
-  });
-
-  it('tags an admin write as admin_remote', () => {
+  /**
+   * An administrator reaching this path is remote: the on-site path is the
+   * app's own BLE write, which files itself as local through the audit
+   * upload. So what arrives here from them is a remote write and is
+   * recorded as one.
+   */
+  it('tags an administrator’s write as admin_remote', () => {
     const d = evaluateWrite(admin, definition(), request());
     assert.equal(d.allowed && d.source, 'admin_remote');
   });
@@ -272,8 +271,8 @@ describe('reads', () => {
     assert.equal(denied(evaluateRead(user, definition(), RIVAL)), 'wrong_tenant');
   });
 
-  it('allows an admin to read across tenants', () => {
-    assert.equal(evaluateRead(admin, definition(), RIVAL).allowed, true);
+  it('refuses even an administrator a read across tenants', () => {
+    assert.equal(denied(evaluateRead(admin, definition(), RIVAL)), 'wrong_tenant');
   });
 
   it('refuses an unknown parameter', () => {

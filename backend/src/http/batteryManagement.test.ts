@@ -32,10 +32,9 @@ beforeEach(async () => {
   const now = Date.now();
   const hash = await hashPassword(PASSWORD, CHEAP);
 
-  seedCompany(store, ACME, 'Acme EV', {}, now);
-  seedCompany(store, RIVAL, 'Rival', {}, now);
+  seedCompany(store, ACME, 'Acme EV', now);
+  seedCompany(store, RIVAL, 'Rival', now);
   for (const [id, company, email, role] of [
-    ['u-admin', null, 'ops@knowyourev.example', 'admin'],
     ['u-owner', ACME, 'owner@acme.example', 'company'],
     ['u-tech', ACME, 'tech@acme.example', 'user'],
     ['u-rival', RIVAL, 'owner@rival.example', 'company'],
@@ -84,8 +83,8 @@ describe('editing a pack', () => {
     assert.equal(serialOf('b-acme')?.serial, 'BAT-0001-R');
   });
 
-  it('lets an administrator change any pack', async () => {
-    assert.equal((await patch('ops@knowyourev.example', 'b-rival', { bmsFirmware: 'FW 2.0' })).statusCode, 204);
+  it('lets the other company’s administrator change its own pack', async () => {
+    assert.equal((await patch('owner@rival.example', 'b-rival', { bmsFirmware: 'FW 2.0' })).statusCode, 204);
   });
 
   /** Same answer as a pack that does not exist, so serials cannot be probed. */

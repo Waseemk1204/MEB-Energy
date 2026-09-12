@@ -7,7 +7,6 @@ import {
   assertOwned,
   canManageUsers,
   canWriteParameters,
-  platformWide,
   tenantQuery,
   type Principal,
 } from './tenancy.js';
@@ -24,8 +23,8 @@ let store: Store;
 const ACME = 'company-acme';
 const RIVAL = 'company-rival';
 
-const principal = (role: Principal['role'], companyId: string | null): Principal => ({
-  userId: `user-${role}-${companyId ?? 'platform'}`,
+const principal = (role: Principal['role'], companyId: string): Principal => ({
+  userId: `user-${role}-${companyId}`,
   role,
   companyId,
 });
@@ -33,7 +32,9 @@ const principal = (role: Principal['role'], companyId: string | null): Principal
 const acmeUser = principal('user', ACME);
 const acmeCompany = principal('company', ACME);
 const rivalUser = principal('user', RIVAL);
-const admin = principal('admin', null);
+
+/** Every row across both companies, for asserting the table itself. */
+const everyBattery = () => store.all<BatteryRow>('SELECT * FROM batteries');
 
 interface BatteryRow {
   id: string;
@@ -54,7 +55,7 @@ beforeEach(() => {
     [ACME, 'Acme EV'],
     [RIVAL, 'Rival Fleet'],
   ] as const) {
-    seedCompany(store, id, name, {}, now);
+    seedCompany(store, id, name, now);
   }
 
   for (const [companyId, serial] of [
@@ -105,20 +106,32 @@ describe('scoped queries', () => {
     assert.ok(rows.every((r) => r.company_id === ACME));
   });
 
-  it('lets a platform admin see every tenant', () => {
-    assert.equal(batteriesFor(admin).length, 3);
+  /**
+   * Nobody is platform-wide. The company's administrator sees the company's
+   * rows and nothing else — there is no principal a scoped query widens for.
+   */
+  it('gives an administrator the same scope as everyone else', () => {
+    const rows = batteriesFor(acmeCompany);
+    assert.equal(rows.length, 2);
+    assert.ok(rows.every((r) => r.company_id === ACME));
   });
 
   it('binds values rather than interpolating them', () => {
     const q = tenantQuery(acmeUser, 'batteries', { where: 'serial = ?', params: ["'; DROP TABLE batteries; --"] });
     assert.doesNotThrow(() => store.all(q.sql, ...q.params));
-    assert.equal(batteriesFor(admin).length, 3); // table intact
+    assert.equal(everyBattery().length, 3); // table intact
+  });
+
+  it('never emits an unscoped query', () => {
+    for (const p of [acmeUser, acmeCompany, rivalUser]) {
+      assert.match(tenantQuery(p, 'batteries').sql, /WHERE batteries\.company_id = \?/);
+    }
   });
 });
 
 describe('the scoping API refuses to be misused', () => {
-  it('rejects a non-admin principal with no company', () => {
-    const rootless = { userId: 'x', role: 'user', companyId: null } as Principal;
+  it('rejects a principal with no company', () => {
+    const rootless = { userId: 'x', role: 'user', companyId: '' } as Principal;
     assert.throws(() => tenantQuery(rootless, 'batteries'), /no company/);
   });
 
@@ -129,14 +142,6 @@ describe('the scoping API refuses to be misused', () => {
     );
   });
 
-  it('refuses a cross-tenant query from a non-admin', () => {
-    assert.throws(() => platformWide(acmeCompany), /cannot query platform-wide/);
-    assert.throws(() => platformWide(acmeUser), TenantScopeError);
-  });
-
-  it('allows it for an admin', () => {
-    assert.doesNotThrow(() => platformWide(admin));
-  });
 });
 
 /** The ID-guessing attack: a valid id from another tenant, fetched by key. */
@@ -152,8 +157,8 @@ describe('ownership checks on direct id lookups', () => {
     assert.doesNotThrow(() => assertOwned(acmeUser, bySerial('BAT-ACME-1'), 'Battery'));
   });
 
-  it('allows an admin any row', () => {
-    assert.doesNotThrow(() => assertOwned(admin, bySerial('BAT-RIVAL-1'), 'Battery'));
+  it('refuses even an administrator another company’s row', () => {
+    assert.throws(() => assertOwned(acmeCompany, bySerial('BAT-RIVAL-1'), 'Battery'), TenantScopeError);
   });
 
   /** Confirming existence is itself a disclosure, so the cases are identical. */
@@ -183,8 +188,9 @@ describe('role permissions', () => {
     assert.equal(canManageUsers(acmeUser, ACME), false);
   });
 
-  it('lets an admin manage any company', () => {
-    assert.equal(canManageUsers(admin, RIVAL), true);
+  it('has nobody who manages every company', () => {
+    assert.equal(canManageUsers(acmeCompany, RIVAL), false);
+    assert.equal(canManageUsers(rivalUser, ACME), false);
   });
 
   it('stops any role writing parameters on another tenant’s battery', () => {
@@ -282,9 +288,9 @@ describe('the audit ledger is append-only', () => {
   });
 });
 
-/** A rootless non-admin would be a principal the scoping rules cannot classify. */
+/** A rootless user would be a principal the scoping rules cannot classify. */
 describe('the schema refuses impossible principals', () => {
-  const insertUser = (companyId: string | null, role: Principal['role']) =>
+  const insertUser = (companyId: string | null, role: string) =>
     store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, created_at) VALUES (?,?,?,?,?,?,?)',
       randomUUID(),
@@ -296,11 +302,16 @@ describe('the schema refuses impossible principals', () => {
       Date.now()
     );
 
-  it('rejects a non-admin user with no company', () => {
-    assert.throws(() => insertUser(null, 'user'), /CHECK/i);
+  it('rejects a user with no company', () => {
+    assert.throws(() => insertUser(null, 'user'), /NOT NULL/i);
   });
 
-  it('rejects an admin bound to a company', () => {
+  it('rejects an administrator with no company', () => {
+    assert.throws(() => insertUser(null, 'company'), /NOT NULL/i);
+  });
+
+  /** The platform-administrator role is gone from the schema, not only from the code. */
+  it('rejects the retired platform-admin role', () => {
     assert.throws(() => insertUser(ACME, 'admin'), /CHECK/i);
   });
 
@@ -308,7 +319,7 @@ describe('the schema refuses impossible principals', () => {
     assert.doesNotThrow(() => insertUser(ACME, 'user'));
   });
 
-  it('accepts a platform admin', () => {
-    assert.doesNotThrow(() => insertUser(null, 'admin'));
+  it('accepts a properly scoped administrator', () => {
+    assert.doesNotThrow(() => insertUser(ACME, 'company'));
   });
 });
