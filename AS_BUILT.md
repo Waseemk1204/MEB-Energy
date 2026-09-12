@@ -9,6 +9,102 @@ Everything not listed here was built as specified.
 
 ---
 
+## 0. From platform to company (September 2026)
+
+The system below was built as **KnowyourEV**: a multi-tenant platform with a
+tenantless platform administrator, plans and entitlements per company, seat
+and gateway and sign-in caps, and a separate Vite administration console. It
+is now **MEB Energy's own application**, and that layer is gone. Everything
+in the sections that follow that mentions a platform administrator, a tenant
+list, an entitlement, a cap or the console describes the system as it was;
+this section says what replaced it.
+
+### What was removed
+
+| Was | Now |
+|---|---|
+| Roles `admin` (platform-wide, no company) / `company` / `user` | Roles `company` (the company's administrator) / `user` (technician). `admin` is refused at the schema, the token and the login; a legacy row is suspended on startup. |
+| `subscriptions` table, `entitlementOf` at every login and refresh, grant / revoke / limits routes, 403 refusals for lapsed plans | Gone. The company works. |
+| Seat, battery and gateway limits; the owner's two-device sign-in cap and the "signed out elsewhere" notice | Gone. No count is a gate. |
+| `/companies`, `/platform/overview`, `/companies/:id/*` | `GET /company` (name + server-counted overview), `PATCH /company` (rename). |
+| `POST /users` taking a `companyId` and any role | Takes `role: 'company' \| 'user'` and optional permissions; the company is the caller's own, and a body naming another is 404. |
+| `console/` (React + Vite) with Batteries, Battery, Audit, Support, Users, Devices, Companies, AcceptInvite | Deleted. Its operational pages that the app lacked were rebuilt inside the app: `accept-invite`, `company/gateways`, `company/ledger`, `company/support`, `company/settings`; `users/[id]` gained editing. |
+| `.github/workflows/ci.yml` | Deleted; this repository is local and has no remote. `./verify.sh` is the whole check. |
+
+### What the company administrator inherited
+
+The `company` role took over everything the platform administrator held that
+is part of running a fleet: opening remote-support sessions and issuing
+commands, Force Push, `requires_admin` parameters, and every permission
+implicitly. `permissionsOf` returns the full set for them without reading the
+columns, and `PATCH /users/:id/permissions` refuses to write those columns for
+an administrator — otherwise a screen would say one thing and the server do
+another. Where the policy engine said `role !== 'admin'` it now says `role !==
+'company'`; the audit sources `admin_remote` / `admin_force_push` kept their
+names because the ledger's CHECK constraint holds them and they still mean
+"remote, by an administrator".
+
+An administrator can also stand at a pack like anyone else: the "administrators
+do not hold BLE sessions" refusal is gone. A write from them through the direct
+route is still recorded as remote and still needs somebody's live session,
+because the on-site path is the app's own BLE write, which files itself as
+`local` through the audit upload.
+
+### Tenancy stayed
+
+Every operational table still carries `company_id` and every read still goes
+through `tenantQuery`, which now has no unscoped branch at all. One company is
+one tenant; the clause costs nothing and is what stops a stray row from a
+merged database or a bug from appearing in the wrong list. `assertOwned` and
+`canManageUsers` lost their admin escape and nothing else.
+
+### The app as a PWA
+
+`web.output` is `single`: one `index.html`, the router owns every path, and a
+static host must fall back to it (the README says how per host;
+`mobile/scripts/serveWeb.mjs` does it locally). `public/` carries
+`index.html` (the shell, with the manifest link and Apple tags),
+`manifest.webmanifest`, `sw.js` and the icons; Expo copies it into `dist/`.
+The worker caches the app's own origin only — hashed bundles and fonts
+forever, the page network-first — and never touches the API, whose readings
+must not be served stale. It registers only in a production build, since
+Metro serves a fresh bundle on every edit. `src/pwa/install.ts` holds
+`beforeinstallprompt` so Settings can offer Install; on iOS it explains the
+Share route instead, which is the only honest thing to say there.
+
+Two things the browser target exposed that the phone never had:
+
+· **`Alert.alert` is a no-op on react-native-web.** Retire, revoke and remove
+  were each guarded by it, so in a browser they silently did nothing.
+  `src/ui/confirm.ts` asks with the browser's own dialog on the web.
+· **The CORS allowlist had no `DELETE`.** Retiring a pack and removing a
+  person failed at the preflight in every browser while the Node live check,
+  which sends no preflight, passed. The comment in `http/cors.ts` that said
+  "the API has no DELETE" was written before the routes existed.
+
+Invitation links are `https://<origin>/accept-invite?token=…` on the web and
+`mebenergy://accept-invite?token=…` on a phone. Before this there was no
+`accept-invite` screen in the app at all: the share sheet handed out a scheme
+URL that nothing answered, and only the console could accept one.
+
+The brand is `expo.name` in `app.json`, read through `src/brand.ts`; the
+signed-in header shows the company's own name from the server, which an
+administrator can change from Company settings. The icons are generated
+(olive tile, battery glyph, wordmark) and replace the Expo template placeholder
+that shipped before.
+
+### Numbers
+
+Backend 542 tests (was 645: the entitlement, session-cap and overview suites
+went with their code), app 751 (was 754), console 0 (was 350). Mutants 78
+(was 88): the 12 console rules and 24 rules about things that no longer exist
+were replaced by 26 about things that now do — the retired role being refused
+at each boundary, one company only, no cross-company reach, the DELETE
+preflight, the invitation screen, the ledger filtering server-side, a queued
+change never reading as delivered.
+
+---
+
 ## 1. The SDK moved under the spec
 
 The prompt targets "Expo SDK 51+". `create-expo-app` resolved to **SDK 57**

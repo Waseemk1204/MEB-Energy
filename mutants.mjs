@@ -44,7 +44,6 @@ if (selected.length === 0) {
 const TEST = {
   backend: ['npm', ['test']],
   mobile: ['npx', ['jest', '--silent']],
-  console: ['npx', ['vitest', 'run']],
 };
 
 const survived = [];

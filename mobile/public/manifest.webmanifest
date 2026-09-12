@@ -1,0 +1,23 @@
+{
+  "name": "MEB Energy",
+  "short_name": "MEB",
+  "description": "Battery diagnostics, configuration and fleet management for MEB Energy.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#4E5B2E",
+  "lang": "en",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Open a pack", "url": "/batteries", "description": "Connect to a battery" },
+    { "name": "People", "url": "/company/people", "description": "Manage who works here" }
+  ]
+}

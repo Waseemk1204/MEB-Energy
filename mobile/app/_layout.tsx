@@ -24,6 +24,7 @@ import { useSecurityStore } from '../src/store/useSecurityStore';
 import { useActivityStore } from '../src/store/useActivityStore';
 import { ErrorBoundary } from '../src/ui/ErrorBoundary';
 import { entryRoute } from '../src/navigation/entryRoute';
+import { registerServiceWorker } from '../src/pwa/registerServiceWorker';
 
 /**
  * Enforces the PRD §7.4 entry flow:
@@ -78,6 +79,7 @@ function Shell() {
     void hydrate();
     void hydrateSecurity();
     void hydrateAudit();
+    registerServiceWorker();
   }, [hydrate, hydrateSecurity, hydrateAudit]);
 
   // Telemetry runs only while a pack is actually linked. It used to start on

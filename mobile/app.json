@@ -1,20 +1,24 @@
 {
   "expo": {
-    "name": "KnowyourEV",
-    "slug": "knowyourev",
+    "name": "MEB Energy",
+    "slug": "meb-energy",
     "version": "1.0.0",
+    "description": "Battery diagnostics, configuration and fleet management for MEB Energy.",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FFFFFF",
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.mebenergy.app",
       "infoPlist": {
-        "NSBluetoothAlwaysUsageDescription": "KnowyourEV connects to your KnowyourEV gateway over Bluetooth to read battery telemetry."
+        "NSBluetoothAlwaysUsageDescription": "MEB Energy connects to your gateway over Bluetooth to read battery telemetry."
       }
     },
     "android": {
+      "package": "com.mebenergy.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#4E5B2E",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -23,14 +27,21 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "single",
+      "name": "MEB Energy",
+      "shortName": "MEB",
+      "themeColor": "#4E5B2E",
+      "backgroundColor": "#FFFFFF",
+      "display": "standalone",
+      "orientation": "portrait"
     },
     "plugins": [
       "expo-router",
       "expo-font",
       "expo-secure-store"
     ],
-    "scheme": "knowyourev",
+    "scheme": "mebenergy",
     "experiments": {
       "typedRoutes": true
     }

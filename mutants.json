@@ -9,7 +9,7 @@
   },
   {
     "name": "tenant scope error becomes 403 instead of 404",
-    "why": "403 confirms the resource exists and belongs to someone else — an enumeration oracle.",
+    "why": "403 confirms the resource exists and belongs to someone else \u2014 an enumeration oracle.",
     "package": "backend",
     "file": "src/http/errors.ts",
     "from": "  if (error instanceof TenantScopeError) {",
@@ -56,14 +56,6 @@
     "to": "    token,"
   },
   {
-    "name": "bootstrap can mint an admin on a running system",
-    "why": "Anyone who can set an environment variable could grant themselves access.",
-    "package": "backend",
-    "file": "src/admin/bootstrap.ts",
-    "from": "  if ((existing?.n ?? 0) > 0) return { kind: 'skipped', reason: 'users_exist' };",
-    "to": ""
-  },
-  {
     "name": "the fleet query drops its bound",
     "why": "Unbounded, one large tenant is a problem for everyone on the instance.",
     "package": "backend",
@@ -89,7 +81,7 @@
   },
   {
     "name": "the store stops telling the buffer where frames came from",
-    "why": "The call site, not the guard — the gap that has recurred four times.",
+    "why": "The call site, not the guard \u2014 the gap that has recurred four times.",
     "package": "mobile",
     "file": "src/store/useTelemetryStore.ts",
     "from": "state.buffer.offer(snapshot, source.simulated);",
@@ -145,7 +137,7 @@
   },
   {
     "name": "the PIN gate on critical writes is removed",
-    "why": "PRD §6.2's re-authentication step, applied to the most dangerous parameters.",
+    "why": "PRD \u00a76.2's re-authentication step, applied to the most dangerous parameters.",
     "package": "mobile",
     "file": "app/write/[parameterKey].tsx",
     "from": "  const pinRequired = critical && pinSet;",
@@ -200,70 +192,6 @@
     "to": "      company: parsed.company ?? 'Aurora Fleet',"
   },
   {
-    "name": "the console's fetch is unbound",
-    "why": "Browsers refuse it; every test injects a double and never takes this branch.",
-    "package": "console",
-    "file": "src/api/client.ts",
-    "from": "    return this.options.fetchImpl ?? globalThis.fetch.bind(globalThis);",
-    "to": "    return this.options.fetchImpl ?? globalThis.fetch;"
-  },
-  {
-    "name": "concurrent 401s each spend the refresh token",
-    "why": "The backend revokes the whole chain, signing an administrator out mid-task.",
-    "package": "console",
-    "file": "src/api/client.ts",
-    "from": "    if (this.refreshing) return this.refreshing;",
-    "to": ""
-  },
-  {
-    "name": "the audit filter stops reaching the server",
-    "why": "The trail is capped, so narrowing a fetched page hides everything older.",
-    "package": "console",
-    "file": "src/api/audit.ts",
-    "from": "  if (filter.batteryId) query.set('batteryId', filter.batteryId);",
-    "to": ""
-  },
-  {
-    "name": "a queued change is reported as sent",
-    "why": "Issuing a change is not making one; Mode 1 rests on the difference.",
-    "package": "console",
-    "file": "src/api/support.ts",
-    "from": "        text: 'Queued. Nobody is linked to this battery, so it will wait until someone is.',",
-    "to": "        text: 'Change applied successfully.',"
-  },
-  {
-    "name": "the Force Push caveat is dropped",
-    "why": "It jumps the queue; it does not conjure a technician, and must say so.",
-    "package": "console",
-    "file": "src/api/support.ts",
-    "from": " It does not deliver it any sooner: a technician still has to be linked to the battery.",
-    "to": ""
-  },
-  {
-    "name": "a technician is admitted to the console",
-    "why": "Not their tool; they are told so rather than shown empty panels.",
-    "package": "console",
-    "file": "src/store/session.ts",
-    "from": "  return role === 'admin' || role === 'company';",
-    "to": "  return true;"
-  },
-  {
-    "name": "chart lines are drawn through reporting gaps",
-    "why": "Asserts a state of charge for a period nobody measured.",
-    "package": "console",
-    "file": "src/api/history.ts",
-    "from": "      const command = i === 0 || breaks.has(i - 1) ? 'M' : 'L';",
-    "to": "      const command = i === 0 ? 'M' : 'L';"
-  },
-  {
-    "name": "user creation sends a password again",
-    "why": "An administrator would know somebody else's credential.",
-    "package": "console",
-    "file": "src/pages/Users.tsx",
-    "from": "      const created = await inviteUser(api, {",
-    "to": "      const created = await inviteUser(api, {\n        password: 'a-chosen-password',"
-  },
-  {
     "name": "a reused refresh token does not revoke the chain",
     "why": "Reuse means the token was stolen or replayed; revoking the chain is the response.",
     "package": "backend",
@@ -280,36 +208,12 @@
     "to": ""
   },
   {
-    "name": "a non-admin may change an admin-only parameter",
-    "why": "Cell count and over-current are admin-only for a reason.",
-    "package": "backend",
-    "file": "src/policy/engine.ts",
-    "from": "  if (definition.requiresAdmin && principal.role !== 'admin') {",
-    "to": "  if (false) {"
-  },
-  {
     "name": "a write is permitted with no BLE session",
-    "why": "PRD §7.3: nothing reaches a BMS without somebody at the pack.",
+    "why": "PRD \u00a77.3: nothing reaches a BMS without somebody at the pack.",
     "package": "backend",
     "file": "src/policy/engine.ts",
     "from": "  if (!request.bleSessionActive) {",
     "to": "  if (false) {"
-  },
-  {
-    "name": "tenant queries drop their company clause",
-    "why": "Every tenant would see every other tenant's rows.",
-    "package": "backend",
-    "file": "src/db/tenancy.ts",
-    "from": "    sql += ` WHERE ${table}.company_id = ?`;",
-    "to": ""
-  },
-  {
-    "name": "suspension leaves refresh tokens alive",
-    "why": "A suspended account keeps working until its token expires.",
-    "package": "backend",
-    "file": "src/admin/service.ts",
-    "from": "  if (status === 'suspended') revokeAllForUser(store, userId, now);",
-    "to": ""
   },
   {
     "name": "server-side ingest drops a fault transition",
@@ -345,7 +249,7 @@
   },
   {
     "name": "the app trusts its bundled bounds over the server's",
-    "why": "PRD §5.2 puts the boundary server-side; the bundled file is presentation.",
+    "why": "PRD \u00a75.2 puts the boundary server-side; the bundled file is presentation.",
     "package": "mobile",
     "file": "src/api/parameters.ts",
     "from": "      min: s.minValue,",
@@ -360,108 +264,12 @@
     "to": "          {null}"
   },
   {
-    "name": "login never applies the device cap",
-    "why": "The rule exists and the route ignores it — a guard and its call site are two changes.",
-    "package": "backend",
-    "file": "src/server.ts",
-    "from": "const evicted = enforceDeviceLimit(store, user);",
-    "to": "const evicted: ReturnType<typeof enforceDeviceLimit> = [];"
-  },
-  {
-    "name": "device cap is off by one",
-    "why": "A cap of two that admits three is a cap nobody bought.",
-    "package": "backend",
-    "file": "src/auth/sessionDevices.ts",
-    "from": "if (excess <= 0) return [];",
-    "to": "if (excess < 0) return [];"
-  },
-  {
-    "name": "eviction takes the newest device, not the oldest",
-    "why": "The person signing in is signed out by their own sign-in.",
-    "package": "backend",
-    "file": "src/auth/sessionDevices.ts",
-    "from": "const evicting = live.slice(-excess);",
-    "to": "const evicting = live.slice(0, excess);"
-  },
-  {
-    "name": "device cap applies to field users and admins",
-    "why": "A technician with a phone and a tablet loses one at every sign-in.",
-    "package": "backend",
-    "file": "src/auth/sessionDevices.ts",
-    "from": "if (!CAPPED_ROLES.has(user.role)) return [];",
-    "to": "if (false) return [];"
-  },
-  {
-    "name": "signed-out sessions still count against the cap",
-    "why": "Signing out on one device would stop freeing a slot on another.",
-    "package": "backend",
-    "file": "src/auth/sessionDevices.ts",
-    "from": "AND revoked_at IS NULL AND expires_at > ?",
-    "to": "AND expires_at > ?"
-  },
-  {
-    "name": "the session cap is stored as the gateway limit",
-    "why": "Two different things called 'device'; conflating them is the standing hazard.",
-    "package": "backend",
-    "file": "src/admin/entitlement.ts",
-    "from": "sets.push('session_device_limit = ?');",
-    "to": "sets.push('device_limit = ?');"
-  },
-  {
-    "name": "a wrong password signs the real owner out",
-    "why": "A stranger who knows an email address gets a free denial of service.",
-    "package": "backend",
-    "file": "src/server.ts",
-    "from": "    if (!user || !valid || user.status !== 'active') {",
-    "to": "    if (user) enforceDeviceLimit(store, user);\n    if (!user || !valid || user.status !== 'active') {"
-  },
-  {
     "name": "a renewal loses the device's name",
     "why": "After fifteen minutes every device becomes 'an unrecognised device'.",
     "package": "backend",
     "file": "src/auth/tokens.ts",
     "from": "    const next = issueRefreshToken(store, row.user_id, now, row.device_label ?? null);",
     "to": "    const next = issueRefreshToken(store, row.user_id, now, null);"
-  },
-  {
-    "name": "devices are signed out silently",
-    "why": "Evicting rather than refusing is only defensible if the person is told.",
-    "package": "backend",
-    "file": "src/server.ts",
-    "from": "      signedOut: evicted.map((device) => describeDevice(device)),",
-    "to": "      signedOut: [],"
-  },
-  {
-    "name": "console sends the sign-in cap as the gateway limit",
-    "why": "Raising one silently raises the other.",
-    "package": "console",
-    "file": "src/pages/Companies.tsx",
-    "from": "          deviceLimit: deviceLimitValue,\n          sessionDeviceLimit: sessionDeviceValue,\n        });\n        setNotice(`${company.name} updated.",
-    "to": "          deviceLimit: sessionDeviceValue,\n        });\n        setNotice(`${company.name} updated."
-  },
-  {
-    "name": "console pre-fills the sign-in cap from the gateway limit",
-    "why": "An admin who accepts every prompt raises a cap of two to forty.",
-    "package": "console",
-    "file": "src/pages/Companies.tsx",
-    "from": "      current?.sessionDeviceLimit ?? DEFAULT_SESSION_DEVICES",
-    "to": "      current?.deviceLimit ?? DEFAULT_SESSION_DEVICES"
-  },
-  {
-    "name": "console shows the gateway figure in the sign-ins column",
-    "why": "The two columns exist precisely to keep them apart.",
-    "package": "console",
-    "file": "src/pages/Companies.tsx",
-    "from": "                    <td className=\"figure\">{usage(e?.sessionDevices)}</td>",
-    "to": "                    <td className=\"figure\">{usage(e?.devices)}</td>"
-  },
-  {
-    "name": "console applies a change after Cancel",
-    "why": "Half a change, applied because somebody backed out, is worse than none.",
-    "package": "console",
-    "file": "src/pages/Companies.tsx",
-    "from": "    if (sessionDeviceValue === null) return;",
-    "to": "    if (false) return;"
   },
   {
     "name": "app reports a blocked company as a network problem",
@@ -478,54 +286,6 @@
     "file": "src/api/auth.ts",
     "from": "    const message = failure.kind === 'blocked' ? failure.detail : MESSAGES[failure.kind];",
     "to": "    const message = MESSAGES[failure.kind];"
-  },
-  {
-    "name": "app drops the signed-out notice",
-    "why": "The one signal that somebody else is using the account.",
-    "package": "mobile",
-    "file": "src/store/useSessionStore.ts",
-    "from": "        signedOut: result.signedOut ?? [],",
-    "to": "        signedOut: [],"
-  },
-  {
-    "name": "app keeps the last person's signed-out notice",
-    "why": "Tells the next user about a device on an account that is not theirs.",
-    "package": "mobile",
-    "file": "src/store/useSessionStore.ts",
-    "from": "      // The next person to sign in must not inherit the last one's notice.\n      signedOut: [],",
-    "to": ""
-  },
-  {
-    "name": "app's signed-out banner omits what to do",
-    "why": "'Somebody signed you out' without 'change the password' is a shrug.",
-    "package": "mobile",
-    "file": "src/ui/SignedOutBanner.tsx",
-    "from": "change its password.",
-    "to": "contact support."
-  },
-  {
-    "name": "the gateway limit shown is not the one enforced",
-    "why": "The console displayed a cap of two on a company the server let register a thousand.",
-    "package": "backend",
-    "file": "src/admin/entitlement.ts",
-    "from": "    deviceLimit: subscription.device_limit,",
-    "to": "    deviceLimit: subscription.device_limit ?? DEFAULT_DEVICE_LIMIT,"
-  },
-  {
-    "name": "a company is created with no gateway cap at all",
-    "why": "Creating from the console gave unlimited gateways while the plan claimed a limit.",
-    "package": "backend",
-    "file": "src/admin/service.ts",
-    "from": "input.deviceLimit === undefined ? DEFAULT_DEVICE_LIMIT : input.deviceLimit,",
-    "to": "input.deviceLimit ?? null,"
-  },
-  {
-    "name": "an explicit 'no limit' is overridden by the default",
-    "why": "An administrator saying no limit is different from not being asked.",
-    "package": "backend",
-    "file": "src/admin/service.ts",
-    "from": "input.deviceLimit === undefined ? DEFAULT_DEVICE_LIMIT : input.deviceLimit,",
-    "to": "input.deviceLimit ?? DEFAULT_DEVICE_LIMIT,"
   },
   {
     "name": "the write route stops checking permission",
@@ -560,14 +320,6 @@
     "to": "  if (!row) {"
   },
   {
-    "name": "an administrator loses implicit permissions",
-    "why": "Admins sit outside every company, so no owner could grant them anything.",
-    "package": "backend",
-    "file": "src/auth/permissions.ts",
-    "from": "  if (principal.role === 'admin') return ADMIN_PERMISSIONS;",
-    "to": "  if (false) return ADMIN_PERMISSIONS;"
-  },
-  {
     "name": "anyone may edit their own permissions",
     "why": "An owner who could grant themselves write would make the whole setting decorative.",
     "package": "backend",
@@ -576,28 +328,12 @@
     "to": "    if (false) {"
   },
   {
-    "name": "every role lands on the battery list",
-    "why": "One login, three destinations — the whole point of the phase.",
-    "package": "mobile",
-    "file": "src/navigation/entryRoute.ts",
-    "from": "  if (onLogin) return connectedBatteryId ? APP : HOME[role];",
-    "to": "  if (onLogin) return connectedBatteryId ? APP : BATTERIES;"
-  },
-  {
     "name": "role surfaces are open to anyone",
     "why": "A company owner rendering a frame of the platform-admin screen before the server refuses it.",
     "package": "mobile",
     "file": "src/navigation/entryRoute.ts",
     "from": "  if (owners && !owners.has(role)) return HOME[role];",
     "to": "  if (false) return HOME[role];"
-  },
-  {
-    "name": "an administrator is locked out of a company surface",
-    "why": "Support work means opening a company's fleet.",
-    "package": "mobile",
-    "file": "src/navigation/entryRoute.ts",
-    "from": "  company: new Set<EntryRole>(['admin', 'company']),",
-    "to": "  company: new Set<EntryRole>(['company']),"
   },
   {
     "name": "unlinked telemetry screens stay open",
@@ -664,22 +400,6 @@
     "to": "const DEFAULTS: Permissions = { read: true, write: true, location: true, health: true };"
   },
   {
-    "name": "chosen permissions are ignored on invite",
-    "why": "The switches on the form would be decorative.",
-    "package": "mobile",
-    "file": "app/company/people.tsx",
-    "from": "        permissions: perms,",
-    "to": "        permissions: DEFAULTS,"
-  },
-  {
-    "name": "the owner is listed among their own people",
-    "why": "The owner is not 'their people'.",
-    "package": "mobile",
-    "file": "app/company/people.tsx",
-    "from": "        setPeople(rows.filter((u) => u.role === 'user'));",
-    "to": "        setPeople(rows);"
-  },
-  {
     "name": "a retired pack shows a stale charge",
     "why": "A retired pack's last reading is history, not a state.",
     "package": "mobile",
@@ -688,19 +408,219 @@
     "to": "        {soc ? ("
   },
   {
-    "name": "a retired pack deletes rather than retires",
-    "why": "The audit ledger references packs by id.",
-    "package": "backend",
-    "file": "src/admin/service.ts",
-    "from": "    store.run(\"UPDATE batteries SET status = 'retired' WHERE id = ?\", batteryId);",
-    "to": "    store.run(\"DELETE FROM batteries WHERE id = ?\", batteryId);"
-  },
-  {
     "name": "retired packs still offered to technicians",
     "why": "A technician picking a pack should not be offered one out of service.",
     "package": "backend",
     "file": "src/server.ts",
     "from": "      ...(includeRetired ? {} : { where: \"status = 'active'\", params: [] }),",
+    "to": ""
+  },
+  {
+    "name": "bootstrap can mint an administrator on a running system",
+    "why": "Anyone who can set an environment variable could grant themselves access.",
+    "package": "backend",
+    "file": "src/company/bootstrap.ts",
+    "from": "  if ((existing?.n ?? 0) > 0) return { kind: 'skipped', reason: 'users_exist' };",
+    "to": ""
+  },
+  {
+    "name": "bootstrap creates a second company beside the first",
+    "why": "There is exactly one company; two rows is a question nobody wants to answer when a technician cannot sign in.",
+    "package": "backend",
+    "file": "src/company/bootstrap.ts",
+    "from": "    const companyId = company?.id ?? randomUUID();",
+    "to": "    const companyId = randomUUID();"
+  },
+  {
+    "name": "a technician may change an administrator-only parameter",
+    "why": "Cell count and over-current are administrator-only for a reason.",
+    "package": "backend",
+    "file": "src/policy/engine.ts",
+    "from": "  if (definition.requiresAdmin && principal.role !== 'company') {",
+    "to": "  if (false) {"
+  },
+  {
+    "name": "tenant queries drop their company clause",
+    "why": "Every row in the database would be reachable from any account.",
+    "package": "backend",
+    "file": "src/db/tenancy.ts",
+    "from": "  let sql = `SELECT ${columns} FROM ${table} WHERE ${table}.company_id = ?`;\n  params.push(principal.companyId);",
+    "to": "  let sql = `SELECT ${columns} FROM ${table} WHERE 1 = 1`;"
+  },
+  {
+    "name": "suspension leaves refresh tokens alive",
+    "why": "A suspended account keeps working until its token expires.",
+    "package": "backend",
+    "file": "src/company/service.ts",
+    "from": "  if (status === 'suspended') revokeAllForUser(store, userId, now);",
+    "to": ""
+  },
+  {
+    "name": "an administrator loses implicit permissions",
+    "why": "Nobody sits above the administrator to grant them anything; without the implicit set, the bootstrapped account could never write.",
+    "package": "backend",
+    "file": "src/auth/permissions.ts",
+    "from": "  if (principal.role === 'company') return ADMINISTRATOR_PERMISSIONS;",
+    "to": "  if (false) return ADMINISTRATOR_PERMISSIONS;"
+  },
+  {
+    "name": "an administrator's permission columns are written",
+    "why": "A screen would say one thing and the server do another.",
+    "package": "backend",
+    "file": "src/server.ts",
+    "from": "    if (target.role === 'company') {\n      throw forbidden(",
+    "to": "    if (false) {\n      throw forbidden("
+  },
+  {
+    "name": "the retired platform-admin role can still sign in",
+    "why": "A tenantless account from before this was one company's application must not open anything.",
+    "package": "backend",
+    "file": "src/server.ts",
+    "from": "    if (!user || !valid || user.status !== 'active' || !isRole(user.role)) {",
+    "to": "    if (!user || !valid || user.status !== 'active') {"
+  },
+  {
+    "name": "a token with the retired platform-admin role is accepted",
+    "why": "A valid signature on a role the application no longer knows is still a malformed token.",
+    "package": "backend",
+    "file": "src/auth/tokens.ts",
+    "from": "    if (!isRole(payload.role)) {",
+    "to": "    if (false) {"
+  },
+  {
+    "name": "the last administrator can be suspended",
+    "why": "Locking every administrator out of the company is not recoverable through the product.",
+    "package": "backend",
+    "file": "src/company/service.ts",
+    "from": "    if ((others?.n ?? 0) === 0) {\n      throw new AdminError('Cannot suspend the last active administrator', 'last_admin');",
+    "to": "    if (false) {\n      throw new AdminError('Cannot suspend the last active administrator', 'last_admin');"
+  },
+  {
+    "name": "a request may name another company",
+    "why": "A client that thinks it is somewhere else should find out, not be quietly corrected \u2014 and never obeyed.",
+    "package": "backend",
+    "file": "src/server.ts",
+    "from": "    if (named !== undefined && named !== principal.companyId) throw notFound('Company');\n    return principal.companyId;",
+    "to": "    return named ?? principal.companyId;"
+  },
+  {
+    "name": "a gateway can be assigned to another company's pack",
+    "why": "An id from elsewhere is simply not a pack.",
+    "package": "backend",
+    "file": "src/company/service.ts",
+    "from": "    if (!pack || pack.company_id !== input.companyId) {",
+    "to": "    if (!pack) {"
+  },
+  {
+    "name": "DELETE is not allowed across origins",
+    "why": "Retiring a pack and removing a person would fail at the preflight in every browser while the Node live check passed.",
+    "package": "backend",
+    "file": "src/http/cors.ts",
+    "from": "const ALLOWED_METHODS = 'GET, POST, PATCH, DELETE, OPTIONS';",
+    "to": "const ALLOWED_METHODS = 'GET, POST, PATCH, OPTIONS';"
+  },
+  {
+    "name": "a retired pack deletes rather than retires",
+    "why": "The audit ledger references packs by id.",
+    "package": "backend",
+    "file": "src/company/service.ts",
+    "from": "    store.run(\"UPDATE batteries SET status = 'retired' WHERE id = ?\", batteryId);",
+    "to": "    store.run(\"DELETE FROM batteries WHERE id = ?\", batteryId);"
+  },
+  {
+    "name": "every role lands on the battery list",
+    "why": "One login, two destinations \u2014 an administrator opens the app to look after the company, not to connect to a pack.",
+    "package": "mobile",
+    "file": "src/navigation/entryRoute.ts",
+    "from": "  if (segment === 'login') return connectedBatteryId ? APP : HOME[role];",
+    "to": "  if (segment === 'login') return connectedBatteryId ? APP : BATTERIES;"
+  },
+  {
+    "name": "a technician can open the company surface",
+    "why": "The server would refuse the data anyway; this stops the app rendering a frame of it first.",
+    "package": "mobile",
+    "file": "src/navigation/entryRoute.ts",
+    "from": "  company: new Set<EntryRole>(['company']),",
+    "to": "  company: new Set<EntryRole>(['company', 'user']),"
+  },
+  {
+    "name": "a signed-out person cannot reach the invitation screen",
+    "why": "The one screen somebody with no account yet is meant to see.",
+    "package": "mobile",
+    "file": "src/navigation/entryRoute.ts",
+    "from": "const PUBLIC: ReadonlySet<string> = new Set(['login', 'accept-invite']);",
+    "to": "const PUBLIC: ReadonlySet<string> = new Set(['login']);"
+  },
+  {
+    "name": "a stored platform-admin role is restored as itself",
+    "why": "A session from before the role was retired must not land somebody on a screen the app no longer knows how to route.",
+    "package": "mobile",
+    "file": "src/store/sessionStorage.ts",
+    "from": "const ROLES: SessionRole[] = ['company', 'user'];",
+    "to": "const ROLES: SessionRole[] = ['admin' as SessionRole, 'company', 'user'];"
+  },
+  {
+    "name": "chosen permissions are ignored on invite",
+    "why": "The switches on the form would be decorative.",
+    "package": "mobile",
+    "file": "app/company/people.tsx",
+    "from": "        permissions: role === 'user' ? perms : undefined,",
+    "to": "        permissions: role === 'user' ? DEFAULTS : undefined,"
+  },
+  {
+    "name": "an invited administrator is sent as a technician",
+    "why": "The role chosen on the form would be decorative.",
+    "package": "mobile",
+    "file": "app/company/people.tsx",
+    "from": "        displayName: name.trim(),\n        role,",
+    "to": "        displayName: name.trim(),\n        role: 'user',"
+  },
+  {
+    "name": "the invitation link points at a screen that does not exist",
+    "why": "Every invitation the company sends would be a dead end.",
+    "package": "mobile",
+    "file": "src/brand.ts",
+    "from": "export const INVITE_PATH = '/accept-invite';",
+    "to": "export const INVITE_PATH = '/accept-invitation';"
+  },
+  {
+    "name": "the ledger filters on the client",
+    "why": "A pack whose changes are older than the newest page would report 'nothing changed'.",
+    "package": "mobile",
+    "file": "src/api/ledger.ts",
+    "from": "  if (filter.batteryId) query.push(`batteryId=${encodeURIComponent(filter.batteryId)}`);",
+    "to": ""
+  },
+  {
+    "name": "a queued remote change reads as delivered",
+    "why": "An administrator who believes a change has landed when it has not is exactly the failure Mode 1 prevents.",
+    "package": "mobile",
+    "file": "src/api/support.ts",
+    "from": "  return disposition === 'deliverable'",
+    "to": "  return true"
+  },
+  {
+    "name": "a remote change needs no reason",
+    "why": "The ledger is worth nothing without one.",
+    "package": "mobile",
+    "file": "src/api/support.ts",
+    "from": "  return reason.trim().length >= MIN_REASON_LENGTH;",
+    "to": "  return true;"
+  },
+  {
+    "name": "a revoked gateway offers a way back",
+    "why": "Revocation is for a gateway that is lost or compromised; a routine undo makes it quarantine with a scarier name.",
+    "package": "mobile",
+    "file": "app/company/gateways.tsx",
+    "from": "                  ) : g.security_status === 'quarantined' ? (",
+    "to": "                  ) : g.security_status !== 'valid' ? ("
+  },
+  {
+    "name": "accepting an invitation adopts nobody's session",
+    "why": "The person would set a password and be left on a screen that looks as though nothing happened.",
+    "package": "mobile",
+    "file": "app/accept-invite.tsx",
+    "from": "      await store.adopt(result);",
     "to": ""
   }
 ]

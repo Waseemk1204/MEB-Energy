@@ -4,9 +4,9 @@
 #
 #   ./verify.sh
 #
-# Typechecks, tests and lints all three packages, then boots the backend on a
-# throwaway database and drives both live checks against it — the app's real
-# modules and the console's real modules, not stand-ins.
+# Typechecks, tests and lints both packages, builds the web app, then boots the
+# backend on a throwaway database and drives the live check against it — the
+# app's real modules, not stand-ins.
 #
 # The live checks are the part that cannot be skipped without losing the point.
 # Several bugs in this repo passed every unit test and every typecheck because
@@ -20,7 +20,7 @@ cd "$ROOT"
 
 # A port nothing else is on, and a database that exists only for this run.
 PORT="${VERIFY_PORT:-3199}"
-DB="$(mktemp -t knowyourev-verify-XXXXXX).db"
+DB="$(mktemp -t meb-verify-XXXXXX).db"
 SERVER_PID=""
 FAILURES=()
 
@@ -36,7 +36,7 @@ trap cleanup EXIT
 step() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
 # Runs a command in a package directory, records the failure, and keeps going —
-# one broken package should not hide the state of the other two.
+# one broken package should not hide the state of the other.
 #
 # Deliberately NOT wrapped in a subshell. `FAILURES+=(...)` inside `( ... )`
 # never reaches the parent, so the first version of this script printed
@@ -61,22 +61,22 @@ step "backend"
 run backend "typecheck" npx tsc --noEmit
 run backend "tests" npm test
 
-step "mobile"
+step "app"
 run mobile "typecheck" npx tsc --noEmit
 run mobile "tests" npm test
 run mobile "lint" npx expo lint
+# The installable build: the manifest, the worker and the icons must all come
+# out, or what ships is a website rather than an app.
+run mobile "web build" npx expo export --platform web
+run mobile "web build carries the app shell" test -f dist/manifest.webmanifest -a -f dist/sw.js -a -f dist/icons/icon-512.png
 
-step "console"
-run console "typecheck" npx tsc --noEmit
-run console "tests" npm test
-run console "build" npx vite build
-
-step "live checks — real client modules against a running API"
+step "live check — real client modules against a running API"
 
 JWT_SECRET="a-verify-run-signing-secret-of-length" \
 DATABASE_FILE="$DB" \
 PORT="$PORT" \
-BOOTSTRAP_ADMIN_EMAIL="ops@knowyourev.example" \
+COMPANY_NAME="Verify Run" \
+BOOTSTRAP_ADMIN_EMAIL="ops@mebenergy.example" \
 BOOTSTRAP_ADMIN_PASSWORD="a-verify-run-passphrase" \
   npx --prefix backend tsx backend/src/main.ts > /tmp/verify-server.log 2>&1 &
 SERVER_PID=$!
@@ -94,11 +94,10 @@ if ! curl -fsS -m 2 "http://localhost:$PORT/ready" > /dev/null 2>&1; then
   FAILURES+=("backend startup")
 else
   export API="http://localhost:$PORT"
-  export ADMIN_EMAIL="ops@knowyourev.example"
+  export ADMIN_EMAIL="ops@mebenergy.example"
   export ADMIN_PASSWORD="a-verify-run-passphrase"
 
   run mobile "app modules against the live API" npm run live-check
-  run console "console modules against the live API" npm run live-check
 fi
 
 if [[ ${#FAILURES[@]} -eq 0 ]]; then
