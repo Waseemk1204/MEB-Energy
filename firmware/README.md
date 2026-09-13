@@ -39,18 +39,27 @@ if the board is wired differently.
 
 ## Wiring
 
-The JBD UART header is 3.3 V logic, 9600 8N1. Four wires:
+The JBD UART header (J10 on the SP24S004) is 3.3 V logic, 9600 8N1. Three
+wires; leave the header's VCC pin alone.
 
-| BMS UART header | ESP32 |
-|---|---|
-| GND | GND |
-| TX | `BMS_RX_PIN` (GPIO16 on esp32dev) |
-| RX | `BMS_TX_PIN` (GPIO17 on esp32dev) |
-| VCC (3.3 V from the BMS, if present) | *do not connect* — power the ESP32 separately |
+| BMS J10 | ESP32-C3 (`esp32c3` env) | ESP32 classic (`esp32dev`) | ESP32-S3 (`esp32s3`) |
+|---|---|---|---|
+| GND | GND | GND | GND |
+| TX | GPIO4 (`BMS_RX_PIN`) | GPIO16 | GPIO18 |
+| RX | GPIO5 (`BMS_TX_PIN`) | GPIO17 | GPIO17 |
+| VCC | *not connected* | *not connected* | *not connected* |
 
-Cross TX↔RX. Confirm the header pinout against the SP24S004 sheet before
-connecting; JBD boards vary in pin order. Power the ESP32 from its own USB or
-a regulated 5 V supply, sharing ground with the BMS.
+Cross TX↔RX: the BMS's TX goes to the ESP32's RX pin. Confirm the J10 pin
+order against the silkscreen or the SP24S004 sheet before connecting — JBD
+boards do not all order the four pins the same way, and TX into TX does
+nothing but RX and VCC swapped can. Power the ESP32 from its own USB,
+sharing ground with the BMS. If the C3 board's pins 4 and 5 are taken, any
+two free GPIOs work: `-DBMS_RX_PIN=… -DBMS_TX_PIN=…`.
+
+**On the ESP32-C3:** the BOOT button is GPIO9 (set in the env). If
+`pio device monitor` shows nothing after flashing, the board's USB is the
+chip's own port rather than a USB-UART bridge; add
+`-DARDUINO_USB_CDC_ON_BOOT=1` to the env's `build_flags` and flash again.
 
 ## Provisioning
 

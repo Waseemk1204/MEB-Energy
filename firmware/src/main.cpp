@@ -83,7 +83,10 @@ static void clearProvisioning() {
 
 /* ------------------------------------------------------------------- BMS */
 
-static HardwareSerial& bms = Serial2;
+// UART1 on every board, with the pins remapped per environment. The C3 has
+// no UART2 at all, and on the classic ESP32 UART1's default pins are the
+// flash pins -- an explicit pin assignment sidesteps both.
+static HardwareSerial bms(1);
 
 struct BmsState {
   bool everAnswered = false;
