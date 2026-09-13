@@ -60,17 +60,17 @@ export interface Invitation {
   expiresAt: number;
 }
 
-export function createInvitation(
+export async function createInvitation(
   store: Store,
   userId: string,
   invitedBy: string,
   now = Date.now()
-): Invitation {
+): Promise<Invitation> {
   const token = randomBytes(TOKEN_BYTES).toString('base64url');
   const invitationId = randomUUID();
   const expiresAt = now + INVITATION_TTL_MS;
 
-  store.run(
+  await store.run(
     `INSERT INTO user_invitations (id, user_id, token_hash, invited_by, expires_at, created_at)
      VALUES (?,?,?,?,?,?)`,
     invitationId,
@@ -113,7 +113,7 @@ export async function acceptInvitation(
     );
   }
 
-  const row = store.get<InvitationRow>(
+  const row = await store.get<InvitationRow>(
     'SELECT id, user_id, expires_at, accepted_at FROM user_invitations WHERE token_hash = ?',
     hashToken(rawToken)
   );
@@ -128,12 +128,12 @@ export async function acceptInvitation(
 
   const hash = await hashPassword(password);
 
-  store.transaction(() => {
+  await store.transaction(async () => {
     // Marking the invitation and activating the account must happen together:
     // an account activated without its invitation being spent would leave a
     // working link behind it.
-    store.run('UPDATE user_invitations SET accepted_at = ? WHERE id = ?', now, row.id);
-    store.run(
+    await store.run('UPDATE user_invitations SET accepted_at = ? WHERE id = ?', now, row.id);
+    await store.run(
       "UPDATE users SET password_hash = ?, status = 'active' WHERE id = ?",
       hash,
       row.user_id
@@ -150,11 +150,11 @@ export interface PendingInvitation {
   invitedBy: string;
 }
 
-export function pendingInvitations(store: Store, userIds: string[]): Map<string, PendingInvitation> {
+export async function pendingInvitations(store: Store, userIds: string[]): Promise<Map<string, PendingInvitation>> {
   if (userIds.length === 0) return new Map();
 
   const placeholders = userIds.map(() => '?').join(',');
-  const rows = store.all<{
+  const rows = await store.all<{
     user_id: string;
     expires_at: number;
     invited_by: string;

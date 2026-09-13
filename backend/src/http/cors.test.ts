@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { FastifyInstance } from 'fastify';
-import { createStore, type Store } from '../db/client.js';
+import type { Store } from '../db/client.js';
 import { secretFrom } from '../auth/tokens.js';
 import { seedParameterDefinitions } from '../policy/seed.js';
 import type { Dispatcher } from '../policy/writeService.js';
 import { buildServer } from '../server.js';
 import { isAllowed, parseOrigins } from './cors.js';
+import { createTestStore } from '../db/testFixtures.js';
 
 /**
  * Cross-origin access. The API served no browser at all until the web app
@@ -19,14 +20,14 @@ const dispatcher: Dispatcher = { send: async ({ value }) => ({ result: 'success'
 
 let store: Store;
 
-const serverWith = (origins: string[]): FastifyInstance => {
-  store = createStore();
-  seedParameterDefinitions(store);
+const serverWith = async (origins: string[]): Promise<FastifyInstance> => {
+  store = await createTestStore();
+  await seedParameterDefinitions(store);
   return buildServer({ store, secret: SECRET, dispatcher, corsOrigins: origins });
 };
 
-beforeEach(() => {
-  store = createStore();
+beforeEach(async () => {
+  store = await createTestStore();
 });
 afterEach(() => store.close());
 
@@ -88,7 +89,7 @@ describe('deciding whether an origin is allowed', () => {
 
 describe('what the API actually sends back', () => {
   it('answers a preflight instead of 404ing it', async () => {
-    const app = serverWith([CONSOLE]);
+    const app = await serverWith([CONSOLE]);
     const res = await app.inject({
       method: 'OPTIONS',
       url: '/auth/login',
@@ -99,7 +100,7 @@ describe('what the API actually sends back', () => {
   });
 
   it('reflects the caller’s origin rather than a wildcard', async () => {
-    const app = serverWith([CONSOLE, 'https://other.example']);
+    const app = await serverWith([CONSOLE, 'https://other.example']);
     const res = await app.inject({
       method: 'OPTIONS',
       url: '/auth/login',
@@ -110,7 +111,7 @@ describe('what the API actually sends back', () => {
   });
 
   it('allows the methods the API has, and no others', async () => {
-    const app = serverWith([CONSOLE]);
+    const app = await serverWith([CONSOLE]);
     const res = await app.inject({ method: 'OPTIONS', url: '/x', headers: { origin: CONSOLE } });
     const methods = String(res.headers['access-control-allow-methods']);
     for (const m of ['GET', 'POST', 'PATCH', 'DELETE']) assert.ok(methods.includes(m), `${m} missing`);
@@ -118,13 +119,13 @@ describe('what the API actually sends back', () => {
   });
 
   it('allows the authorization header, without which nothing works', async () => {
-    const app = serverWith([CONSOLE]);
+    const app = await serverWith([CONSOLE]);
     const res = await app.inject({ method: 'OPTIONS', url: '/x', headers: { origin: CONSOLE } });
     assert.ok(String(res.headers['access-control-allow-headers']).includes('authorization'));
   });
 
   it('sends CORS headers on a real request, not only a preflight', async () => {
-    const app = serverWith([CONSOLE]);
+    const app = await serverWith([CONSOLE]);
     const res = await app.inject({
       method: 'POST',
       url: '/auth/login',
@@ -140,7 +141,7 @@ describe('what the API actually sends back', () => {
    * another, quietly turning an allowlist into a wildcard.
    */
   it('varies on Origin, including when the origin is refused', async () => {
-    const app = serverWith([CONSOLE]);
+    const app = await serverWith([CONSOLE]);
 
     const allowed = await app.inject({ method: 'GET', url: '/health', headers: { origin: CONSOLE } });
     assert.equal(allowed.headers.vary, 'Origin');
@@ -154,7 +155,7 @@ describe('what the API actually sends back', () => {
   });
 
   it('does not enable credentials, since auth is a bearer token', async () => {
-    const app = serverWith([CONSOLE]);
+    const app = await serverWith([CONSOLE]);
     const res = await app.inject({ method: 'OPTIONS', url: '/x', headers: { origin: CONSOLE } });
     assert.equal(res.headers['access-control-allow-credentials'], undefined);
   });
@@ -162,7 +163,7 @@ describe('what the API actually sends back', () => {
 
 describe('an origin that was not configured', () => {
   it('gets no allow-origin header, so the browser refuses the response', async () => {
-    const app = serverWith([CONSOLE]);
+    const app = await serverWith([CONSOLE]);
     const res = await app.inject({
       method: 'GET',
       url: '/health',
@@ -173,7 +174,7 @@ describe('an origin that was not configured', () => {
 
   /** Telling an unlisted origin apart from an unknown path helps nobody. */
   it('gets the same 204 on preflight as an allowed one, minus the headers', async () => {
-    const app = serverWith([CONSOLE]);
+    const app = await serverWith([CONSOLE]);
     const res = await app.inject({
       method: 'OPTIONS',
       url: '/auth/login',
@@ -184,7 +185,7 @@ describe('an origin that was not configured', () => {
   });
 
   it('is still refused when the API is configured for no origins at all', async () => {
-    const app = serverWith([]);
+    const app = await serverWith([]);
     const res = await app.inject({ method: 'GET', url: '/health', headers: { origin: CONSOLE } });
     assert.equal(res.headers['access-control-allow-origin'], undefined);
   });
@@ -192,7 +193,7 @@ describe('an origin that was not configured', () => {
 
 describe('what CORS must not change', () => {
   it('leaves a request with no origin working exactly as before', async () => {
-    const app = serverWith([CONSOLE]);
+    const app = await serverWith([CONSOLE]);
     const res = await app.inject({ method: 'GET', url: '/health' });
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.json(), { ok: true });
@@ -203,7 +204,7 @@ describe('what CORS must not change', () => {
    * still gets 401 without a token — the two must never be confused.
    */
   it('does not authorise anything by itself', async () => {
-    const app = serverWith([CONSOLE]);
+    const app = await serverWith([CONSOLE]);
     const res = await app.inject({ method: 'GET', url: '/batteries', headers: { origin: CONSOLE } });
     assert.equal(res.statusCode, 401);
   });
@@ -216,10 +217,10 @@ describe('what CORS must not change', () => {
  * endpoint that takes no body — came back as a 500.
  */
 describe('a request Fastify itself rejects', () => {
-  const app = () => serverWith([CONSOLE]);
+  const app = async () => await serverWith([CONSOLE]);
 
   it('is a 400, not a 500', async () => {
-    const res = await app().inject({
+    const res = await (await app()).inject({
       method: 'POST',
       url: '/auth/login',
       headers: { 'content-type': 'application/json' },
@@ -229,7 +230,7 @@ describe('a request Fastify itself rejects', () => {
   });
 
   it('says what was wrong rather than "Something went wrong"', async () => {
-    const res = await app().inject({
+    const res = await (await app()).inject({
       method: 'POST',
       url: '/auth/login',
       headers: { 'content-type': 'application/json' },
@@ -240,7 +241,7 @@ describe('a request Fastify itself rejects', () => {
   });
 
   it('is a 400 for a body that is not valid JSON', async () => {
-    const res = await app().inject({
+    const res = await (await app()).inject({
       method: 'POST',
       url: '/auth/login',
       headers: { 'content-type': 'application/json' },
@@ -251,7 +252,7 @@ describe('a request Fastify itself rejects', () => {
 
   /** A genuine bug must still say nothing; only 4xx is passed through. */
   it('does not let a 5xx leak its detail', async () => {
-    const store2 = createStore();
+    const store2 = await createTestStore();
     const broken: Dispatcher = {
       send: async () => {
         throw new Error('secret internal detail');

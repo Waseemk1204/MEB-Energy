@@ -309,7 +309,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
     // A token outlives a suspension, so status is re-checked per request rather
     // than trusted from the claims.
-    const user = store.get<UserRow>('SELECT status FROM users WHERE id = ?', principal.userId);
+    const user = await store.get<UserRow>('SELECT status FROM users WHERE id = ?', principal.userId);
     if (!user || user.status !== 'active') {
       throw new AuthError('Account is not active', 'revoked');
     }
@@ -327,8 +327,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   /* ------------------------------------------------------------------ auth */
 
   /** The company, as the client needs to display it. */
-  const companyNamed = (s: Store, companyId: string) =>
-    s.get<{ id: string; name: string }>('SELECT id, name FROM companies WHERE id = ?', companyId) ??
+  const companyNamed = async (s: Store, companyId: string) =>
+    await s.get<{ id: string; name: string }>('SELECT id, name FROM companies WHERE id = ?', companyId) ??
     null;
 
   app.post('/auth/login', async (request, reply) => {
@@ -339,7 +339,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       throw tooManyRequests('Too many sign-in attempts. Try again shortly.');
     }
 
-    const user = store.get<UserRow>('SELECT * FROM users WHERE email = ?', key);
+    const user = await store.get<UserRow>('SELECT * FROM users WHERE email = ?', key);
 
     // The same failure for an unknown email and a wrong password, and the hash
     // is verified either way so the two paths take comparable time. Telling an
@@ -359,7 +359,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // Opportunistic upgrade when the stored cost is below current policy.
     if (needsRehash(user.password_hash)) {
       const upgraded = await hashPassword(password);
-      store.run('UPDATE users SET password_hash = ? WHERE id = ?', upgraded, user.id);
+      await store.run('UPDATE users SET password_hash = ? WHERE id = ?', upgraded, user.id);
     }
 
     const principal: Principal = {
@@ -370,7 +370,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // There is no cap on how many devices anybody is signed in on. The label
     // is kept so a session can be named, nothing more.
     const label = labelFor(request.headers['user-agent']);
-    const refresh = issueRefreshToken(store, user.id, Date.now(), label);
+    const refresh = await issueRefreshToken(store, user.id, Date.now(), label);
 
     return reply.send({
       accessToken: await issueAccessToken(principal, secret),
@@ -385,15 +385,15 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       },
       // The client shows the company's name in its header. Without this it can
       // only fall back to a built-in default.
-      company: companyNamed(store, user.company_id),
+      company: await companyNamed(store, user.company_id),
     });
   });
 
   app.post('/auth/refresh', async (request, reply) => {
     const { refreshToken } = parse(refreshBody, request.body);
-    const rotated = rotateRefreshToken(store, refreshToken);
+    const rotated = await rotateRefreshToken(store, refreshToken);
 
-    const user = store.get<UserRow>('SELECT * FROM users WHERE id = ?', rotated.userId);
+    const user = await store.get<UserRow>('SELECT * FROM users WHERE id = ?', rotated.userId);
     if (!user || user.status !== 'active' || !isRole(user.role)) {
       throw new AuthError('Account is not active', 'revoked');
     }
@@ -403,26 +403,26 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       accessToken: await issueAccessToken(principal, secret),
       refreshToken: rotated.token,
       expiresAt: rotated.expiresAt,
-      company: companyNamed(store, user.company_id),
+      company: await companyNamed(store, user.company_id),
     });
   });
 
   app.post('/auth/logout', async (request, reply) => {
     const { refreshToken } = parse(refreshBody, request.body);
-    revokeRefreshToken(store, refreshToken);
+    await revokeRefreshToken(store, refreshToken);
     return reply.status(204).send();
   });
 
   app.get('/me', async (request, reply) => {
     const principal = await principalOf(request);
-    const user = store.get<UserRow>('SELECT * FROM users WHERE id = ?', principal.userId);
+    const user = await store.get<UserRow>('SELECT * FROM users WHERE id = ?', principal.userId);
     return reply.send({
       id: user!.id,
       email: user!.email,
       displayName: user!.display_name,
       role: user!.role,
       companyId: user!.company_id,
-      permissions: permissionsOf(store, principal),
+      permissions: await permissionsOf(store, principal),
     });
   });
 
@@ -453,14 +453,14 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       ...(includeRetired ? {} : { where: "status = 'active'", params: [] }),
     });
     // One more than asked for, purely to detect truncation without a COUNT.
-    const rows = store.all<{ id: string }>(`${q.sql} LIMIT ?`, ...q.params, limit + 1);
+    const rows = await store.all<{ id: string }>(`${q.sql} LIMIT ?`, ...q.params, limit + 1);
     const truncated = rows.length > limit;
     const batteries = truncated ? rows.slice(0, limit) : rows;
 
     // Each pack's last known reading, with the time it was taken. The client
     // needs the age as much as the value: a state of charge shown without one
     // reads as current, and a pack last seen three weeks ago is not.
-    const readings = lastReadings(store, principal, batteries.map((b) => b.id));
+    const readings = await lastReadings(store, principal, batteries.map((b) => b.id));
 
     return reply.send({
       batteries: batteries.map((b) => ({ ...b, lastReading: readings.get(b.id) ?? null })),
@@ -471,33 +471,33 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
   app.get<{ Params: { id: string } }>('/batteries/:id', async (request, reply) => {
     const principal = await principalOf(request);
-    requirePermission(store, principal, 'read');
+    await requirePermission(store, principal, 'read');
     // Scoped rather than fetched-then-checked, so a foreign id is simply absent.
     const q = tenantQuery(principal, 'batteries', { where: 'id = ?', params: [request.params.id] });
-    const battery = store.all<{ id: string }>(q.sql, ...q.params)[0];
+    const battery = (await store.all<{ id: string }>(q.sql, ...q.params))[0];
     if (!battery) throw notFound('Battery');
 
     // The same shape the list returns. Without this a client that wants one
     // battery has to fetch the whole fleet and pick it out — which works until
     // the fleet is paged, and then quietly stops working.
-    const readings = lastReadings(store, principal, [battery.id]);
+    const readings = await lastReadings(store, principal, [battery.id]);
     return reply.send({ ...battery, lastReading: readings.get(battery.id) ?? null });
   });
 
   /* --------------------------------------------------------- BLE sessions */
 
   /** Returns the battery scoped to the caller, or throws 404. */
-  const ownBattery = (principal: Principal, id: string) => {
+  const ownBattery = async (principal: Principal, id: string) => {
     const q = tenantQuery(principal, 'batteries', { where: 'id = ?', params: [id] });
-    const row = store.all<{ id: string; company_id: string }>(q.sql, ...q.params)[0];
+    const row = (await store.all<{ id: string; company_id: string }>(q.sql, ...q.params))[0];
     if (!row) throw notFound('Battery');
     return row;
   };
 
   app.post<{ Params: { id: string } }>('/batteries/:id/session', async (request, reply) => {
     const principal = await principalOf(request);
-    const battery = ownBattery(principal, request.params.id);
-    const id = openSession(store, principal, battery.id, battery.company_id);
+    const battery = await ownBattery(principal, request.params.id);
+    const id = await openSession(store, principal, battery.id, battery.company_id);
     return reply.send({ sessionId: id, batteryId: battery.id });
   });
 
@@ -505,30 +505,30 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     '/batteries/:id/session/heartbeat',
     async (request, reply) => {
       const principal = await principalOf(request);
-      const battery = ownBattery(principal, request.params.id);
-      if (!heartbeat(store, principal, battery.id)) throw notFound('Session');
+      const battery = await ownBattery(principal, request.params.id);
+      if (!await heartbeat(store, principal, battery.id)) throw notFound('Session');
       return reply.status(204).send();
     }
   );
 
   app.delete<{ Params: { id: string } }>('/batteries/:id/session', async (request, reply) => {
     const principal = await principalOf(request);
-    const battery = ownBattery(principal, request.params.id);
-    closeSession(store, principal, battery.id);
+    const battery = await ownBattery(principal, request.params.id);
+    await closeSession(store, principal, battery.id);
     return reply.status(204).send();
   });
 
   app.get<{ Params: { id: string } }>('/batteries/:id/session', async (request, reply) => {
     const principal = await principalOf(request);
-    const battery = ownBattery(principal, request.params.id);
-    return reply.send({ active: isSessionActive(store, battery.id) });
+    const battery = await ownBattery(principal, request.params.id);
+    return reply.send({ active: await isSessionActive(store, battery.id) });
   });
 
   /* ------------------------------------------------------------- parameters */
 
   app.get<{ Params: { model: string } }>('/bms/:model/parameters', async (request, reply) => {
     await principalOf(request);
-    const profile = capabilityProfile(store, decodeURIComponent(request.params.model));
+    const profile = await capabilityProfile(store, decodeURIComponent(request.params.model));
     return reply.send({ parameters: profile });
   });
 
@@ -544,7 +544,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
        * minutes more, and the person being revoked is usually the one you
        * most want stopped now.
        */
-      requirePermission(store, principal, 'write');
+      await requirePermission(store, principal, 'write');
 
       const body = parse(writeBody, request.body);
 
@@ -586,20 +586,25 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
    */
   app.post<{ Params: { id: string } }>('/batteries/:id/audit', async (request, reply) => {
     const principal = await principalOf(request);
-    const battery = ownBattery(principal, request.params.id);
+    const battery = await ownBattery(principal, request.params.id);
     const body = parse(auditUploadBody, request.body);
 
-    const results = body.events.map((event) =>
-      ingestClientAudit(store, {
-        ...event,
-        // Tenant and actor come from the token, never from the payload.
-        companyId: battery.company_id,
-        actorUserId: principal.userId,
-        actorRole: principal.role,
-        batteryId: battery.id,
-        source: 'local',
-      })
-    );
+    // In order, one at a time: each is idempotent on its own id, and two
+    // uploads of the same batch racing each other is the case that matters.
+    const results = [];
+    for (const event of body.events) {
+      results.push(
+        await ingestClientAudit(store, {
+          ...event,
+          // Tenant and actor come from the token, never from the payload.
+          companyId: battery.company_id,
+          actorUserId: principal.userId,
+          actorRole: principal.role,
+          batteryId: battery.id,
+          source: 'local',
+        })
+      );
+    }
 
     return reply.send({
       accepted: results.map((r, i) => ({
@@ -617,14 +622,14 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   app.post('/support-sessions', async (request, reply) => {
     const principal = await principalOf(request);
     const body = parse(supportSessionBody, request.body);
-    const id = startSupportSession(store, principal, body.batteryId, body.targetUserId ?? null);
+    const id = await startSupportSession(store, principal, body.batteryId, body.targetUserId ?? null);
     return reply.status(201).send({ supportSessionId: id });
   });
 
   app.patch<{ Params: { id: string } }>('/support-sessions/:id', async (request, reply) => {
     const principal = await principalOf(request);
     const { outcome } = parse(endSessionBody, request.body);
-    const cancelled = endSupportSession(store, principal, request.params.id, outcome);
+    const cancelled = await endSupportSession(store, principal, request.params.id, outcome);
     // Reported because closing a session silently voiding queued work would be
     // a surprise worth surfacing to whoever closed it.
     return reply.send({ ended: true, cancelledCommands: cancelled });
@@ -633,13 +638,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   app.get('/support-sessions', async (request, reply) => {
     const principal = await principalOf(request);
     const q = tenantQuery(principal, 'support_sessions', { orderBy: 'started_at DESC' });
-    return reply.send({ sessions: store.all(q.sql, ...q.params) });
+    return reply.send({ sessions: await store.all(q.sql, ...q.params) });
   });
 
   app.post<{ Params: { id: string } }>('/support-sessions/:id/commands', async (request, reply) => {
     const principal = await principalOf(request);
     const body = parse(commandBody, request.body);
-    const result = issueCommand(store, principal, request.params.id, body.parameterKey, body.value, {
+    const result = await issueCommand(store, principal, request.params.id, body.parameterKey, body.value, {
       reason: body.reason,
       forcePush: body.forcePush,
     });
@@ -653,14 +658,14 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
    */
   app.post<{ Params: { id: string } }>('/batteries/:id/commands/claim', async (request, reply) => {
     const principal = await principalOf(request);
-    const battery = ownBattery(principal, request.params.id);
-    return reply.send({ commands: claimCommands(store, principal, battery.id) });
+    const battery = await ownBattery(principal, request.params.id);
+    return reply.send({ commands: await claimCommands(store, principal, battery.id) });
   });
 
   app.post<{ Params: { id: string } }>('/commands/:id/result', async (request, reply) => {
     const principal = await principalOf(request);
     const body = parse(commandResultBody, request.body);
-    const auditId = completeCommand(
+    const auditId = await completeCommand(
       store,
       principal,
       request.params.id,
@@ -672,16 +677,16 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
   app.get<{ Querystring: { batteryId?: string } }>('/commands', async (request, reply) => {
     const principal = await principalOf(request);
-    return reply.send({ commands: listCommands(store, principal, request.query.batteryId) });
+    return reply.send({ commands: await listCommands(store, principal, request.query.batteryId) });
   });
 
   /* -------------------------------------------------------------- telemetry */
 
   app.post<{ Params: { id: string } }>('/batteries/:id/telemetry', async (request, reply) => {
     const principal = await principalOf(request);
-    const battery = ownBattery(principal, request.params.id);
+    const battery = await ownBattery(principal, request.params.id);
     const { samples } = parse(telemetryBody, request.body);
-    const result = ingestSamples(store, battery.company_id, battery.id, samples as Sample[]);
+    const result = await ingestSamples(store, battery.company_id, battery.id, samples as Sample[]);
     return reply.status(202).send(result);
   });
 
@@ -689,10 +694,10 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     '/batteries/:id/telemetry',
     async (request, reply) => {
       const principal = await principalOf(request);
-      const battery = ownBattery(principal, request.params.id);
+      const battery = await ownBattery(principal, request.params.id);
       const { from, to, limit } = request.query;
       return reply.send({
-        readings: queryHistory(store, principal, {
+        readings: await queryHistory(store, principal, {
           batteryId: battery.id,
           from: from ? Number(from) : undefined,
           to: to ? Number(to) : undefined,
@@ -711,12 +716,12 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
    */
   app.get('/company', async (request, reply) => {
     const principal = await principalOf(request);
-    const company = companyOf(store, principal);
+    const company = await companyOf(store, principal);
     return reply.send({
       id: company.id,
       name: company.name,
       createdAt: company.created_at,
-      overview: companyOverview(store, company.id),
+      overview: await companyOverview(store, company.id),
     });
   });
 
@@ -724,7 +729,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   app.patch('/company', async (request, reply) => {
     const principal = await principalOf(request);
     const { name } = parse(companyBody, request.body);
-    const company = renameCompany(store, principal, name);
+    const company = await renameCompany(store, principal, name);
     return reply.send({ id: company.id, name: company.name, createdAt: company.created_at });
   });
 
@@ -777,13 +782,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
     try {
       const { userId } = await acceptInvitation(store, body.token, body.password);
-      const user = store.get<UserRow>('SELECT * FROM users WHERE id = ?', userId)!;
+      const user = (await store.get<UserRow>('SELECT * FROM users WHERE id = ?', userId))!;
       const principal: Principal = {
         userId: user.id,
         role: user.role,
         companyId: user.company_id,
       };
-      const refresh = issueRefreshToken(
+      const refresh = await issueRefreshToken(
         store,
         user.id,
         Date.now(),
@@ -803,7 +808,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           role: user.role,
           companyId: user.company_id,
         },
-        company: companyNamed(store, user.company_id),
+        company: await companyNamed(store, user.company_id),
       });
     } catch (error) {
       if (error instanceof InvitationError && error.code !== 'weak_password') {
@@ -817,20 +822,20 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
   app.get('/users', async (request, reply) => {
     const principal = await principalOf(request);
-    return reply.send({ users: listUsers(store, principal) });
+    return reply.send({ users: await listUsers(store, principal) });
   });
 
   /** Who somebody is. Administrators only, and only inside the company. */
   app.patch<{ Params: { id: string } }>('/users/:id', async (request, reply) => {
     const principal = await principalOf(request);
-    updateUser(store, principal, request.params.id, parse(userPatchBody, request.body));
+    await updateUser(store, principal, request.params.id, parse(userPatchBody, request.body));
     return reply.status(204).send();
   });
 
   app.patch<{ Params: { id: string } }>('/users/:id/status', async (request, reply) => {
     const principal = await principalOf(request);
     const { status } = parse(statusBody, request.body);
-    setUserStatus(store, principal, request.params.id, status);
+    await setUserStatus(store, principal, request.params.id, status);
     return reply.status(204).send();
   });
 
@@ -847,7 +852,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
     // Reuse the visibility rule rather than restating it: if this principal
     // cannot see the user, the user is simply not found.
-    const target = visibleUser(store, principal, request.params.id);
+    const target = await visibleUser(store, principal, request.params.id);
     if (!target) throw notFound('User');
 
     /*
@@ -871,9 +876,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       );
     }
 
-    setPermissions(store, target.id, patch);
+    await setPermissions(store, target.id, patch);
     return reply.send(
-      permissionsOf(store, { ...principal, userId: target.id, role: target.role })
+      await permissionsOf(store, { ...principal, userId: target.id, role: target.role })
     );
   });
 
@@ -884,7 +889,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
    */
   app.delete<{ Params: { id: string } }>('/users/:id', async (request, reply) => {
     const principal = await principalOf(request);
-    const result = removeUser(store, principal, request.params.id);
+    const result = await removeUser(store, principal, request.params.id);
     return reply.send(result);
   });
 
@@ -893,7 +898,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   app.post('/batteries', async (request, reply) => {
     const principal = await principalOf(request);
     const body = parse(batteryBody, request.body);
-    const id = registerBattery(store, principal, {
+    const id = await registerBattery(store, principal, {
       ...body,
       companyId: ownCompanyId(principal, body.companyId),
     });
@@ -903,7 +908,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   /** Edit a pack's details. Administrators only. */
   app.patch<{ Params: { id: string } }>('/batteries/:id', async (request, reply) => {
     const principal = await principalOf(request);
-    updateBattery(store, principal, request.params.id, parse(batteryPatchBody, request.body));
+    await updateBattery(store, principal, request.params.id, parse(batteryPatchBody, request.body));
     return reply.status(204).send();
   });
 
@@ -913,20 +918,20 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
    */
   app.delete<{ Params: { id: string } }>('/batteries/:id', async (request, reply) => {
     const principal = await principalOf(request);
-    retireBattery(store, principal, request.params.id);
+    await retireBattery(store, principal, request.params.id);
     return reply.status(204).send();
   });
 
   app.post<{ Params: { id: string } }>('/batteries/:id/reinstate', async (request, reply) => {
     const principal = await principalOf(request);
-    reinstateBattery(store, principal, request.params.id);
+    await reinstateBattery(store, principal, request.params.id);
     return reply.status(204).send();
   });
 
   app.post('/devices', async (request, reply) => {
     const principal = await principalOf(request);
     const body = parse(deviceBody, request.body);
-    const id = registerDevice(store, principal, {
+    const id = await registerDevice(store, principal, {
       ...body,
       companyId: ownCompanyId(principal, body.companyId),
     });
@@ -935,13 +940,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
   app.get('/devices', async (request, reply) => {
     const principal = await principalOf(request);
-    return reply.send({ devices: listDevices(store, principal) });
+    return reply.send({ devices: await listDevices(store, principal) });
   });
 
   app.patch<{ Params: { id: string } }>('/devices/:id/security', async (request, reply) => {
     const principal = await principalOf(request);
     const { securityStatus } = parse(deviceStatusBody, request.body);
-    setDeviceSecurityStatus(store, principal, request.params.id, securityStatus);
+    await setDeviceSecurityStatus(store, principal, request.params.id, securityStatus);
     return reply.status(204).send();
   });
 
@@ -953,7 +958,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       const principal = await principalOf(request);
       const { batteryId, source, result, limit } = request.query;
       return reply.send({
-        events: queryAudit(store, principal, {
+        events: await queryAudit(store, principal, {
           batteryId,
           source: source as never,
           result: result as never,
@@ -986,7 +991,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       // A real query against a real table, not `SELECT 1`: an open handle to a
       // file that has been truncated or replaced will answer `SELECT 1` quite
       // happily and fail on anything that reads a page.
-      const row = store.get<{ n: number }>('SELECT COUNT(*) AS n FROM parameter_definitions');
+      const row = await store.get<{ n: number }>('SELECT COUNT(*) AS n FROM parameter_definitions');
 
       if ((row?.n ?? 0) === 0) {
         // The schema exists but the seed does not, so no write could be

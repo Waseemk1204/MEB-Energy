@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { FastifyInstance } from 'fastify';
-import { createStore, type Store } from '../db/client.js';
+import type { Store } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
 import { secretFrom } from '../auth/tokens.js';
 import { JBD_SP24S004, seedParameterDefinitions } from '../policy/seed.js';
 import type { Dispatcher } from '../policy/writeService.js';
 import { createLimiter } from './rateLimit.js';
 import { buildServer } from '../server.js';
-import { seedCompany } from '../db/testFixtures.js';
+import { createTestStore, seedCompany } from '../db/testFixtures.js';
 
 /**
  * Assisted remote control over HTTP, driven the way the admin console and the
@@ -29,13 +29,13 @@ let app: FastifyInstance;
 const dispatcher: Dispatcher = { send: async ({ value }) => ({ result: 'success', readBack: value }) };
 
 beforeEach(async () => {
-  store = createStore();
-  seedParameterDefinitions(store);
+  store = await createTestStore();
+  await seedParameterDefinitions(store);
   const now = Date.now();
   const hash = await hashPassword(PASSWORD, CHEAP);
 
-  seedCompany(store, ACME, 'Acme EV', now);
-  store.run(
+  await seedCompany(store, ACME, 'Acme EV', now);
+  await store.run(
     `INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, bms_model, created_at)
      VALUES (?,?,?,?,?,?,?)`,
     BATTERY, ACME, 'BAT-ACME-1', 'LiFePO4', 24, JBD_SP24S004, now
@@ -45,7 +45,7 @@ beforeEach(async () => {
     ['u-tech', ACME, 'tech@acme.example', 'user'],
     ['u-tech-2', ACME, 'tech2@acme.example', 'user'],
   ] as const) {
-    store.run(
+    await store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
       id, company, email, role, role, hash, 'active', now
     );
@@ -62,7 +62,7 @@ const tokenFor = async (email: string) => {
 };
 const auth = (t: string) => ({ authorization: `Bearer ${t}` });
 
-const openTicket = async (token: string) =>
+const openTicket = (token: string) =>
   app.inject({
     method: 'POST',
     url: '/support-sessions',
@@ -70,7 +70,7 @@ const openTicket = async (token: string) =>
     payload: { batteryId: BATTERY },
   });
 
-const issue = async (token: string, sessionId: string, body: Record<string, unknown>) =>
+const issue = (token: string, sessionId: string, body: Record<string, unknown>) =>
   app.inject({
     method: 'POST',
     url: `/support-sessions/${sessionId}/commands`,

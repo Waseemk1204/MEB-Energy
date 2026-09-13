@@ -52,25 +52,25 @@ export interface SupportSessionRow {
   outcome: string | null;
 }
 
-export function startSupportSession(
+export async function startSupportSession(
   store: Store,
   principal: Principal,
   batteryId: string,
   targetUserId: string | null = null,
   now = Date.now()
-): string {
+): Promise<string> {
   if (principal.role !== 'company') {
     throw new BrokerError('Only an administrator may open a support session', 'forbidden');
   }
 
-  const battery = store.get<{ id: string; company_id: string }>(
+  const battery = await store.get<{ id: string; company_id: string }>(
     'SELECT id, company_id FROM batteries WHERE id = ?',
     batteryId
   );
   assertOwned(principal, battery, 'Battery');
 
   const id = randomUUID();
-  store.run(
+  await store.run(
     `INSERT INTO support_sessions
      (id, company_id, admin_user_id, target_user_id, battery_id, started_at)
      VALUES (?,?,?,?,?,?)`,
@@ -91,14 +91,14 @@ export function startSupportSession(
  * conversation that justified it has ended and with nobody expecting it. A
  * queued command is only ever as live as the session that raised it.
  */
-export function endSupportSession(
+export async function endSupportSession(
   store: Store,
   principal: Principal,
   sessionId: string,
   outcome: string,
   now = Date.now()
-): number {
-  const session = store.get<SupportSessionRow>(
+): Promise<number> {
+  const session = await store.get<SupportSessionRow>(
     'SELECT * FROM support_sessions WHERE id = ?',
     sessionId
   );
@@ -107,19 +107,19 @@ export function endSupportSession(
     throw new BrokerError('Support session not found', 'not_found');
   }
 
-  return store.transaction(() => {
-    store.run(
+  return await store.transaction(async () => {
+    await store.run(
       'UPDATE support_sessions SET ended_at = ?, outcome = ? WHERE id = ?',
       now,
       outcome,
       sessionId
     );
-    const queued = store.all<{ id: string }>(
+    const queued = await store.all<{ id: string }>(
       "SELECT id FROM commands WHERE support_session_id = ? AND state = 'queued'",
       sessionId
     );
     for (const row of queued) {
-      store.run("UPDATE commands SET state = 'cancelled', settled_at = ? WHERE id = ?", now, row.id);
+      await store.run("UPDATE commands SET state = 'cancelled', settled_at = ? WHERE id = ?", now, row.id);
     }
     return queued.length;
   });
@@ -150,7 +150,7 @@ export interface IssueResult {
   auditId: string;
 }
 
-export function issueCommand(
+export async function issueCommand(
   store: Store,
   principal: Principal,
   sessionId: string,
@@ -159,8 +159,8 @@ export function issueCommand(
   options: { reason?: string; forcePush?: boolean } = {},
   policy: CompanyPolicy = {},
   now = Date.now()
-): IssueResult {
-  const session = store.get<SupportSessionRow>(
+): Promise<IssueResult> {
+  const session = await store.get<SupportSessionRow>(
     'SELECT * FROM support_sessions WHERE id = ?',
     sessionId
   );
@@ -172,15 +172,15 @@ export function issueCommand(
     throw new BrokerError('That support session has ended', 'session_closed');
   }
 
-  const battery = store.get<{ id: string; company_id: string; bms_model: string | null }>(
+  const battery = await store.get<{ id: string; company_id: string; bms_model: string | null }>(
     'SELECT id, company_id, bms_model FROM batteries WHERE id = ?',
     session.battery_id
   );
   assertOwned(principal, battery, 'Battery');
 
   const bmsModel = battery.bms_model ?? 'unknown';
-  const definition = findDefinition(store, parameterKey, bmsModel);
-  const present = activeSessionFor(store, battery.id, now) !== null;
+  const definition = await findDefinition(store, parameterKey, bmsModel);
+  const present = (await activeSessionFor(store, battery.id, now)) !== null;
 
   // Policy is evaluated at issue time against the situation as it stands. A
   // command with nobody on site is still refused rather than queued when the
@@ -216,7 +216,7 @@ export function issueCommand(
   };
 
   if (!decision.allowed) {
-    const auditId = recordAudit(store, {
+    const auditId = await recordAudit(store, {
       ...base,
       result: 'rejected',
       bmsResponse: `policy:${decision.code}`,
@@ -225,7 +225,7 @@ export function issueCommand(
   }
 
   const commandId = randomUUID();
-  store.run(
+  await store.run(
     `INSERT INTO commands
      (id, company_id, support_session_id, battery_id, parameter_key, value, issued_by,
       force_push, state, created_at)
@@ -244,7 +244,7 @@ export function issueCommand(
 
   // Issuing is itself auditable, separately from the eventual outcome — an
   // administrator asking for something is a fact even if it never lands.
-  const auditId = recordAudit(store, {
+  const auditId = await recordAudit(store, {
     ...base,
     result: present ? 'indeterminate' : 'indeterminate',
     bmsResponse: present ? 'broker:deliverable' : 'broker:queued_no_session',
@@ -259,28 +259,28 @@ export function issueCommand(
  * This is the only way a command leaves the cloud, and it is gated on the
  * caller genuinely holding the live session — not on them saying so.
  */
-export function claimCommands(
+export async function claimCommands(
   store: Store,
   principal: Principal,
   batteryId: string,
   now = Date.now()
-): CommandRow[] {
-  const battery = store.get<{ id: string; company_id: string }>(
+): Promise<CommandRow[]> {
+  const battery = await store.get<{ id: string; company_id: string }>(
     'SELECT id, company_id FROM batteries WHERE id = ?',
     batteryId
   );
   assertOwned(principal, battery, 'Battery');
 
-  const live = activeSessionFor(store, battery.id, now);
+  const live = await activeSessionFor(store, battery.id, now);
   if (!live || live.userId !== principal.userId) {
     // No live link of this caller's own: nothing is collectable. Mode 1.
     return [];
   }
 
-  expireStaleCommands(store, now);
+  await expireStaleCommands(store, now);
 
   // Force Push jumps the queue; that is what the flag is for.
-  const rows = store.all<CommandRow>(
+  const rows = await store.all<CommandRow>(
     `SELECT * FROM commands
      WHERE battery_id = ? AND state = 'queued'
      ORDER BY force_push DESC, created_at ASC`,
@@ -288,25 +288,25 @@ export function claimCommands(
   );
 
   for (const row of rows) {
-    store.run("UPDATE commands SET state = 'claimed', claimed_at = ? WHERE id = ?", now, row.id);
+    await store.run("UPDATE commands SET state = 'claimed', claimed_at = ? WHERE id = ?", now, row.id);
   }
   return rows.map((r) => ({ ...r, state: 'claimed' as const }));
 }
 
 /** The app reports what the BMS actually did, and that becomes the audit row. */
-export function completeCommand(
+export async function completeCommand(
   store: Store,
   principal: Principal,
   commandId: string,
   result: WriteResult,
   bmsResponse: string | null = null,
   now = Date.now()
-): string {
-  const command = store.get<CommandRow>('SELECT * FROM commands WHERE id = ?', commandId);
+): Promise<string> {
+  const command = await store.get<CommandRow>('SELECT * FROM commands WHERE id = ?', commandId);
   if (!command) throw new BrokerError('Command not found', 'not_found');
   assertOwned(principal, command, 'Command');
 
-  store.run(
+  await store.run(
     "UPDATE commands SET state = 'completed', settled_at = ?, result = ? WHERE id = ?",
     now,
     result,
@@ -327,19 +327,19 @@ export function completeCommand(
   });
 }
 
-export function expireStaleCommands(store: Store, now = Date.now()): void {
-  store.run(
+export async function expireStaleCommands(store: Store, now = Date.now()): Promise<void> {
+  await store.run(
     "UPDATE commands SET state = 'expired', settled_at = ? WHERE state = 'queued' AND created_at < ?",
     now,
     now - COMMAND_TTL_MS
   );
 }
 
-export function listCommands(store: Store, principal: Principal, batteryId?: string): CommandRow[] {
+export async function listCommands(store: Store, principal: Principal, batteryId?: string): Promise<CommandRow[]> {
   const q = tenantQuery(principal, 'commands', {
     where: batteryId ? 'battery_id = ?' : undefined,
     params: batteryId ? [batteryId] : [],
     orderBy: 'created_at DESC',
   });
-  return store.all<CommandRow>(q.sql, ...q.params);
+  return await store.all<CommandRow>(q.sql, ...q.params);
 }

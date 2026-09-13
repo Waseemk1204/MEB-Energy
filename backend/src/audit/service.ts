@@ -61,16 +61,20 @@ export interface AuditRow {
   seq: number;
 }
 
-export function recordAudit(store: Store, record: AuditRecord, now = Date.now()): string {
+export async function recordAudit(store: Store, record: AuditRecord, now = Date.now()): Promise<string> {
   const id = randomUUID();
-  store.run(
+  // The tiebreaker. Postgres numbers it itself (an identity column, which is
+  // safe under concurrent writers); SQLite has one writer and computes it.
+  const columns = store.dialect === 'postgres' ? '' : ', seq';
+  const seq =
+    store.dialect === 'postgres' ? '' : ', (SELECT COALESCE(MAX(seq), 0) + 1 FROM audit_events)';
+  await store.run(
     `INSERT INTO audit_events
      (id, company_id, actor_user_id, actor_role, battery_id, device_id, parameter_key,
       old_value, new_value, reason, source, result, bms_response, app_version,
       device_firmware, bms_firmware, support_session_id, client_event_id,
-      occurred_at, recorded_at, seq)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
-             (SELECT COALESCE(MAX(seq), 0) + 1 FROM audit_events))`,
+      occurred_at, recorded_at${columns})
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?${seq})`,
     id,
     record.companyId,
     record.actorUserId,
@@ -110,20 +114,20 @@ export function recordAudit(store: Store, record: AuditRecord, now = Date.now())
  * event that happened three hours late, and a device with a wrong clock must
  * not be able to backdate the ledger's own ordering, which `seq` governs.
  */
-export function ingestClientAudit(
+export async function ingestClientAudit(
   store: Store,
   record: AuditRecord & { clientEventId: string },
   now = Date.now()
-): { auditId: string; duplicate: boolean } {
-  return store.transaction(() => {
-    const existing = store.get<{ id: string }>(
+): Promise<{ auditId: string; duplicate: boolean }> {
+  return await store.transaction(async () => {
+    const existing = await store.get<{ id: string }>(
       'SELECT id FROM audit_events WHERE company_id = ? AND client_event_id = ?',
       record.companyId,
       record.clientEventId
     );
     if (existing) return { auditId: existing.id, duplicate: true };
 
-    return { auditId: recordAudit(store, record, now), duplicate: false };
+    return { auditId: await recordAudit(store, record, now), duplicate: false };
   });
 }
 
@@ -139,11 +143,11 @@ export interface AuditFilter {
  * Reading the trail is tenant-scoped like everything else — a company sees its
  * own history, an admin sees the platform's.
  */
-export function queryAudit(
+export async function queryAudit(
   store: Store,
   principal: Principal,
   filter: AuditFilter = {}
-): AuditRow[] {
+): Promise<AuditRow[]> {
   const clauses: string[] = [];
   const params: Param[] = [];
 
@@ -171,5 +175,5 @@ export function queryAudit(
   });
 
   const limit = Math.min(Math.max(filter.limit ?? 200, 1), 1000);
-  return store.all<AuditRow>(`${q.sql} LIMIT ?`, ...q.params, limit);
+  return await store.all<AuditRow>(`${q.sql} LIMIT ?`, ...q.params, limit);
 }

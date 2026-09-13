@@ -8,7 +8,7 @@ Two codebases, one product:
 | | What it is | Stack |
 |---|---|---|
 | [`mobile/`](mobile) | The app. Technicians connect to packs over BLE; administrators look after people, fleet, gateways, the ledger and remote support. Built for the web as a PWA; iOS and Android build from the same source. | Expo SDK 57, React Native 0.86, expo-router |
-| [`backend/`](backend) | The API — auth, the company, policy, the audit ledger, the command broker | Node 22, Fastify 5, `node:sqlite` |
+| [`backend/`](backend) | The API — auth, the company, policy, the audit ledger, the command broker | Node 22, Fastify 5; Postgres in production, `node:sqlite` in development |
 
 This is a standalone company application. It began life as a multi-tenant
 platform with a separate administration console; that layer — platform
@@ -70,10 +70,53 @@ npm run serve:web           # http://localhost:4173, with the single-page fallba
 `dist/` is a static site: `index.html`, the bundle, `manifest.webmanifest`,
 `sw.js` and the icons. Any static host serves it, with one requirement — every
 path that is not a file must return `index.html` (the router owns the paths,
-and an invitation link is a deep one). Netlify: `/* /index.html 200` in
-`_redirects`. Vercel: a rewrite to `/index.html`. nginx: `try_files $uri
+and an invitation link is a deep one). `mobile/vercel.json` does this on
+Vercel; Netlify: `/* /index.html 200` in `_redirects`; nginx: `try_files $uri
 /index.html`. Set `EXPO_PUBLIC_API_URL` at build time to where the API lives,
 and put the app's origin in the API's `CORS_ORIGINS`.
+
+---
+
+## Hosting it all on Vercel
+
+Two Vercel projects from this one repository, and a Neon database.
+
+**1. The database.** In Vercel → Storage, create a **Neon Postgres** store (or
+bring any Postgres). Its connection string is `DATABASE_URL`.
+
+**2. The API** — import the repo as a project with **Root Directory
+`backend`**. `backend/vercel.json` turns the whole API into one function
+(`api/index.ts`) and routes every path to it; Fastify does the routing
+inside, exactly as it does locally. Environment variables:
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | the Neon connection string (the store attaches it automatically) |
+| `JWT_SECRET` | 32+ random characters |
+| `CORS_ORIGINS` | the app's URL from step 3, e.g. `https://meb-energy.vercel.app` |
+| `COMPANY_NAME` | `MEB Energy` |
+| `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` | the first administrator; fires once, on the empty database |
+
+The first request after a deploy runs the migration, seeds the parameter
+definitions and bootstraps the company — all idempotent, so a cold start is
+safe to repeat. `GET /ready` on the API's URL should answer
+`{"ready":true,"parameters":29}`.
+
+**3. The app** — import the repo again with **Root Directory `mobile`** and one
+environment variable, `EXPO_PUBLIC_API_URL`, set to the API project's URL.
+`mobile/vercel.json` builds the web export and adds the single-page rewrite.
+Then go back to the API project and put this app's URL in `CORS_ORIGINS`.
+
+What a function cannot do: hold a BLE session (that was never the server's
+job) or run the in-memory login rate limiter across instances — it still
+limits, per instance, less strictly. Cold starts add a few hundred
+milliseconds to the first request on a quiet instance.
+
+Locally, the same Postgres path runs with nothing installed:
+`node scripts/pgliteServer.mjs` in `backend/` starts an in-process Postgres on
+`localhost:5432`, and `DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres`
+makes the API use it. `backend/Dockerfile` remains for a host with a disk, if
+one is ever wanted instead.
 
 Opened in a browser, the app offers **Install** from Company settings (or
 Settings on a connected pack) where the browser supports it, and explains
@@ -111,7 +154,8 @@ no cap on how many devices anybody is signed in on.
 | `JWT_SECRET` | **yes** | — | The process refuses to start without it. |
 | `CORS_ORIGINS` | for browsers | *(empty)* | Comma-separated allowlist of the app's origins. Empty serves **no** browser — the safe default, not an oversight. |
 | `PORT` | no | `3000` | |
-| `DATABASE_FILE` | no | `company.db` | `:memory:` for a throwaway instance. |
+| `DATABASE_URL` | production | — | A Postgres connection string. Set, the API runs on Postgres and `DATABASE_FILE` is ignored. |
+| `DATABASE_FILE` | no | `company.db` | The SQLite file for development. `:memory:` for a throwaway instance. |
 | `COMPANY_NAME` | first run | `MEB Energy` | The company's name; an administrator can rename it later. |
 | `BOOTSTRAP_ADMIN_EMAIL` | first run | — | Only fires on an empty users table. |
 | `BOOTSTRAP_ADMIN_PASSWORD` | first run | — | At least 12 characters. |
@@ -156,9 +200,15 @@ trusting before a change goes anywhere.
 The individual pieces:
 
 ```bash
-cd backend  && npm test          # node:test
-cd mobile   && npm test          # jest-expo
+cd backend  && npm test               # node:test, on SQLite in memory
+cd backend  && npm run test:postgres  # the same suite on PGlite — a real Postgres engine, in-process
+cd mobile   && npm test               # jest-expo
 ```
+
+The backend suite runs twice on purpose. The services are written once, with
+`?` placeholders, and the Postgres store rewrites them; a query that is right
+on one dialect and wrong on the other (`inner` is a reserved word on Postgres;
+SQLite did not mind) fails a test rather than a deploy.
 
 `backend/src/policy/profileParity.test.ts` reaches across the package boundary
 on purpose: it compares the backend's parameter seed with the app's bundled
@@ -189,7 +239,7 @@ every browser until the CORS allowlist named the verb.
 ### Checking the tests themselves
 
 ```bash
-node mutants.mjs            # all 79 rules
+node mutants.mjs            # all 82 rules
 node mutants.mjs mobile     # one package
 node mutants.mjs "PIN"      # by name
 ```
@@ -219,7 +269,7 @@ themselves, and whoever holds an unused link can claim that account. Single use
 and a seven-day expiry bound it; the app says so at the point of handover.
 When email exists, only the delivery changes.
 
-**SQLite is a development choice.** The schema is portable, but
-`audit_events.seq` uses `MAX(seq) + 1`, which is not safe under concurrent
-writers — on Postgres it should be `BIGSERIAL`. That comment is in
-`backend/src/db/client.ts` next to the column.
+**SQLite is the development store only.** Production is Postgres, where
+`audit_events.seq` is an identity column and safe under concurrent writers;
+on SQLite it is `MAX(seq) + 1`, which is safe there because the connection is
+the only writer.

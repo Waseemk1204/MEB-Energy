@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { createStore, type Store } from '../db/client.js';
+import type { Store } from '../db/client.js';
 import type { Principal } from '../db/tenancy.js';
 import { issueRefreshToken, rotateRefreshToken } from '../auth/tokens.js';
 import {
@@ -16,7 +16,7 @@ import {
   setUserStatus,
   updateUser,
 } from './service.js';
-import { seedCompany } from '../db/testFixtures.js';
+import { createTestStore, seedCompany } from '../db/testFixtures.js';
 
 let store: Store;
 
@@ -47,78 +47,78 @@ const codeOf = async (fn: () => unknown): Promise<string | null> => {
   }
 };
 
-beforeEach(() => {
-  store = createStore();
+beforeEach(async () => {
+  store = await createTestStore();
   const now = Date.now();
 
   for (const [id, name] of [
     [ACME, 'Acme EV'],
     [RIVAL, 'Rival Fleet'],
   ] as const) {
-    seedCompany(store, id, name, now);
+    await seedCompany(store, id, name, now);
   }
 
-  const insert = (id: string, company: string, email: string, role: string) =>
-    store.run(
+  const insert = async (id: string, company: string, email: string, role: string) =>
+    await store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
       id, company, email, role, role, 'x', 'active', now
     );
-  insert('u-admin', ACME, 'admin@acme.example', 'company');
-  insert('u-acme-owner', ACME, 'owner@acme.example', 'company');
-  insert('u-acme-field', ACME, 'field@acme.example', 'user');
-  insert('u-rival-owner', RIVAL, 'owner@rival.example', 'company');
+  await insert('u-admin', ACME, 'admin@acme.example', 'company');
+  await insert('u-acme-owner', ACME, 'owner@acme.example', 'company');
+  await insert('u-acme-field', ACME, 'field@acme.example', 'user');
+  await insert('u-rival-owner', RIVAL, 'owner@rival.example', 'company');
 });
 
 afterEach(() => store.close());
 
 describe('the company', () => {
-  it('is the principal’s own', () => {
-    assert.equal(companyOf(store, acmeOwner).name, 'Acme EV');
-    assert.equal(companyOf(store, rivalOwner).name, 'Rival Fleet');
+  it('is the principal’s own', async () => {
+    assert.equal((await companyOf(store, acmeOwner)).name, 'Acme EV');
+    assert.equal((await companyOf(store, rivalOwner)).name, 'Rival Fleet');
   });
 
-  it('can be renamed by an administrator', () => {
-    renameCompany(store, acmeOwner, '  Acme Electric  ');
-    assert.equal(companyOf(store, acmeOwner).name, 'Acme Electric');
+  it('can be renamed by an administrator', async () => {
+    await renameCompany(store, acmeOwner, '  Acme Electric  ');
+    assert.equal((await companyOf(store, acmeOwner)).name, 'Acme Electric');
   });
 
-  it('cannot be renamed by a technician', () => {
-    assert.throws(() => renameCompany(store, acmeField, 'Sneaky'), AdminError);
-    assert.equal(companyOf(store, acmeOwner).name, 'Acme EV');
+  it('cannot be renamed by a technician', async () => {
+    await assert.rejects(async () => await renameCompany(store, acmeField, 'Sneaky'), AdminError);
+    assert.equal((await companyOf(store, acmeOwner)).name, 'Acme EV');
   });
 
-  it('renames only its own', () => {
-    renameCompany(store, acmeOwner, 'Acme Electric');
-    assert.equal(companyOf(store, rivalOwner).name, 'Rival Fleet');
+  it('renames only its own', async () => {
+    await renameCompany(store, acmeOwner, 'Acme Electric');
+    assert.equal((await companyOf(store, rivalOwner)).name, 'Rival Fleet');
   });
 });
 
 describe('the overview', () => {
-  it('counts the company’s people by status and role', () => {
-    const o = companyOverview(store, ACME);
+  it('counts the company’s people by status and role', async () => {
+    const o = await companyOverview(store, ACME);
     assert.deepEqual(o.people, { total: 3, active: 3, invited: 0, administrators: 2 });
   });
 
-  it('counts only the company’s own', () => {
-    assert.equal(companyOverview(store, RIVAL).people.total, 1);
+  it('counts only the company’s own', async () => {
+    assert.equal((await companyOverview(store, RIVAL)).people.total, 1);
   });
 
   it('counts an invitation as invited, not active', async () => {
     await createUser(store, acmeOwner, newUser({ password: undefined }));
-    const o = companyOverview(store, ACME);
+    const o = await companyOverview(store, ACME);
     assert.equal(o.people.invited, 1);
     assert.equal(o.people.active, 3);
   });
 
-  it('counts gateways in service separately', () => {
-    const id = registerDevice(store, acmeOwner, {
+  it('counts gateways in service separately', async () => {
+    const id = await registerDevice(store, acmeOwner, {
       companyId: ACME, serial: 'KYE-1', hardwareRevision: 'HW 1.0', firmwareVersion: 'FW 1',
     });
-    registerDevice(store, acmeOwner, {
+    await registerDevice(store, acmeOwner, {
       companyId: ACME, serial: 'KYE-2', hardwareRevision: 'HW 1.0', firmwareVersion: 'FW 1',
     });
-    setDeviceSecurityStatus(store, acmeOwner, id, 'revoked');
-    assert.deepEqual(companyOverview(store, ACME).gateways, { total: 2, inService: 1 });
+    await setDeviceSecurityStatus(store, acmeOwner, id, 'revoked');
+    assert.deepEqual((await companyOverview(store, ACME)).gateways, { total: 2, inService: 1 });
   });
 });
 
@@ -131,7 +131,7 @@ describe('creating users', () => {
   /** A second administrator, so the first is not the only one who can do anything. */
   it('lets an administrator create another administrator', async () => {
     const { id } = await createUser(store, acmeOwner, newUser({ role: 'company' }));
-    const row = store.get<{ role: string; company_id: string }>('SELECT role, company_id FROM users WHERE id = ?', id);
+    const row = await store.get<{ role: string; company_id: string }>('SELECT role, company_id FROM users WHERE id = ?', id);
     assert.equal(row?.role, 'company');
     assert.equal(row?.company_id, ACME);
   });
@@ -139,86 +139,86 @@ describe('creating users', () => {
   /* --- the escalation paths --- */
 
   it('stops an administrator creating a user in another company', async () => {
-    assert.equal(await codeOf(() => createUser(store, acmeOwner, newUser({ companyId: RIVAL }))), 'forbidden');
+    assert.equal(await codeOf(async () => await createUser(store, acmeOwner, newUser({ companyId: RIVAL }))), 'forbidden');
   });
 
   it('stops a technician creating anyone', async () => {
-    assert.equal(await codeOf(() => createUser(store, acmeField, newUser())), 'forbidden');
+    assert.equal(await codeOf(async () => await createUser(store, acmeField, newUser())), 'forbidden');
   });
 
   /** The platform-administrator role is gone; asking for it is not a role. */
   it('refuses the retired platform-admin role', async () => {
     assert.equal(
-      await codeOf(() => createUser(store, acmeOwner, newUser({ role: 'admin' as never }))),
+      await codeOf(async () => await createUser(store, acmeOwner, newUser({ role: 'admin' as never }))),
       'invalid_role'
     );
   });
 
   it('refuses a user with no company', async () => {
     assert.equal(
-      await codeOf(() => createUser(store, acmeOwner, newUser({ companyId: '' }))),
+      await codeOf(async () => await createUser(store, acmeOwner, newUser({ companyId: '' }))),
       'invalid_role'
     );
   });
 
   it('refuses a duplicate email', async () => {
     assert.equal(
-      await codeOf(() => createUser(store, acmeOwner, newUser({ email: 'field@acme.example' }))),
+      await codeOf(async () => await createUser(store, acmeOwner, newUser({ email: 'field@acme.example' }))),
       'email_taken'
     );
   });
 
   it('normalises the email before storing it', async () => {
     const { id } = await createUser(store, acmeOwner, newUser({ email: '  MiXeD@Acme.Example ' }));
-    const row = store.get<{ email: string }>('SELECT email FROM users WHERE id = ?', id);
+    const row = await store.get<{ email: string }>('SELECT email FROM users WHERE id = ?', id);
     assert.equal(row?.email, 'mixed@acme.example');
   });
 
   it('never stores the password itself', async () => {
     const { id } = await createUser(store, acmeOwner, newUser({ password: 'hunter2' }));
-    const row = store.get<{ password_hash: string }>('SELECT password_hash FROM users WHERE id = ?', id);
+    const row = await store.get<{ password_hash: string }>('SELECT password_hash FROM users WHERE id = ?', id);
     assert.ok(!row!.password_hash.includes('hunter2'));
   });
 
   /** There is no cap. How many people the company has is its own business. */
   it('has no seat limit', async () => {
     for (let i = 0; i < 25; i += 1) {
-      assert.equal(await codeOf(() => createUser(store, acmeOwner, newUser())), null);
+      assert.equal(await codeOf(async () => await createUser(store, acmeOwner, newUser())), null);
     }
-    assert.equal(companyOverview(store, ACME).people.total, 28);
+    assert.equal((await companyOverview(store, ACME)).people.total, 28);
   });
 });
 
 describe('editing a user', () => {
-  it('changes their name', () => {
-    updateUser(store, acmeOwner, 'u-acme-field', { displayName: '  Priya Raman ' });
-    const row = store.get<{ display_name: string }>('SELECT display_name FROM users WHERE id = ?', 'u-acme-field');
+  it('changes their name', async () => {
+    await updateUser(store, acmeOwner, 'u-acme-field', { displayName: '  Priya Raman ' });
+    const row = await store.get<{ display_name: string }>('SELECT display_name FROM users WHERE id = ?', 'u-acme-field');
     assert.equal(row?.display_name, 'Priya Raman');
   });
 
-  it('changes their email, normalised', () => {
-    updateUser(store, acmeOwner, 'u-acme-field', { email: ' Priya@Acme.Example' });
-    const row = store.get<{ email: string }>('SELECT email FROM users WHERE id = ?', 'u-acme-field');
+  it('changes their email, normalised', async () => {
+    await updateUser(store, acmeOwner, 'u-acme-field', { email: ' Priya@Acme.Example' });
+    const row = await store.get<{ email: string }>('SELECT email FROM users WHERE id = ?', 'u-acme-field');
     assert.equal(row?.email, 'priya@acme.example');
   });
 
   it('refuses an email somebody else already has', async () => {
     assert.equal(
-      await codeOf(() => updateUser(store, acmeOwner, 'u-acme-field', { email: 'owner@acme.example' })),
+      await codeOf(async () => await updateUser(store, acmeOwner, 'u-acme-field', { email: 'owner@acme.example' })),
       'email_taken'
     );
   });
 
   it('is refused to a technician', async () => {
-    assert.equal(await codeOf(() => updateUser(store, acmeField, 'u-acme-owner', { displayName: 'X' })), 'not_found');
+    assert.equal(await codeOf(async () => await updateUser(store, acmeField, 'u-acme-owner', { displayName: 'X' })), 'not_found');
   });
 
   it('cannot reach another company’s people', async () => {
-    assert.equal(await codeOf(() => updateUser(store, rivalOwner, 'u-acme-field', { displayName: 'X' })), 'not_found');
+    assert.equal(await codeOf(async () => await updateUser(store, rivalOwner, 'u-acme-field', { displayName: 'X' })), 'not_found');
   });
 
-  it('does nothing when asked to change nothing', () => {
-    assert.doesNotThrow(() => updateUser(store, acmeOwner, 'u-acme-field', {}));
+  it('does nothing when asked to change nothing', async () => {
+    await assert.doesNotReject(async () => await updateUser(store, acmeOwner, 'u-acme-field', {}));
   });
 });
 
@@ -227,64 +227,64 @@ describe('editing a user', () => {
  * expires — up to a fortnight after being told they no longer have access.
  */
 describe('suspending a user', () => {
-  it('revokes their sessions immediately', () => {
-    const { token } = issueRefreshToken(store, 'u-acme-field');
-    setUserStatus(store, acmeOwner, 'u-acme-field', 'suspended');
-    assert.throws(() => rotateRefreshToken(store, token), /already been used|not recognised/);
+  it('revokes their sessions immediately', async () => {
+    const { token } = await issueRefreshToken(store, 'u-acme-field');
+    await setUserStatus(store, acmeOwner, 'u-acme-field', 'suspended');
+    await assert.rejects(async () => await rotateRefreshToken(store, token), /already been used|not recognised/);
   });
 
-  it('leaves other users’ sessions alone', () => {
-    const mine = issueRefreshToken(store, 'u-acme-field');
-    const theirs = issueRefreshToken(store, 'u-acme-owner');
-    setUserStatus(store, acmeOwner, 'u-acme-field', 'suspended');
-    assert.doesNotThrow(() => rotateRefreshToken(store, theirs.token));
-    assert.throws(() => rotateRefreshToken(store, mine.token));
+  it('leaves other users’ sessions alone', async () => {
+    const mine = await issueRefreshToken(store, 'u-acme-field');
+    const theirs = await issueRefreshToken(store, 'u-acme-owner');
+    await setUserStatus(store, acmeOwner, 'u-acme-field', 'suspended');
+    await assert.doesNotReject(async () => await rotateRefreshToken(store, theirs.token));
+    await assert.rejects(async () => await rotateRefreshToken(store, mine.token));
   });
 
-  it('does not revoke when reactivating', () => {
-    setUserStatus(store, acmeOwner, 'u-acme-field', 'suspended');
-    setUserStatus(store, acmeOwner, 'u-acme-field', 'active');
-    const { token } = issueRefreshToken(store, 'u-acme-field');
-    assert.doesNotThrow(() => rotateRefreshToken(store, token));
+  it('does not revoke when reactivating', async () => {
+    await setUserStatus(store, acmeOwner, 'u-acme-field', 'suspended');
+    await setUserStatus(store, acmeOwner, 'u-acme-field', 'active');
+    const { token } = await issueRefreshToken(store, 'u-acme-field');
+    await assert.doesNotReject(async () => await rotateRefreshToken(store, token));
   });
 
-  it('stops an administrator suspending another company’s user', () => {
-    assert.throws(() => setUserStatus(store, rivalOwner, 'u-acme-field', 'suspended'), /not found/);
+  it('stops an administrator suspending another company’s user', async () => {
+    await assert.rejects(async () => await setUserStatus(store, rivalOwner, 'u-acme-field', 'suspended'), /not found/);
   });
 
-  it('is refused to a technician', () => {
-    assert.throws(() => setUserStatus(store, acmeField, 'u-acme-owner', 'suspended'), /not found/);
+  it('is refused to a technician', async () => {
+    await assert.rejects(async () => await setUserStatus(store, acmeField, 'u-acme-owner', 'suspended'), /not found/);
   });
 
   /** Locking every administrator out is not recoverable through the product. */
   it('refuses to suspend the last active administrator', async () => {
-    setUserStatus(store, admin, 'u-acme-owner', 'suspended');
-    assert.equal(await codeOf(() => setUserStatus(store, admin, 'u-admin', 'suspended')), 'last_admin');
+    await setUserStatus(store, admin, 'u-acme-owner', 'suspended');
+    assert.equal(await codeOf(async () => await setUserStatus(store, admin, 'u-admin', 'suspended')), 'last_admin');
   });
 
   it('allows it while another administrator remains', async () => {
-    assert.equal(await codeOf(() => setUserStatus(store, admin, 'u-acme-owner', 'suspended')), null);
+    assert.equal(await codeOf(async () => await setUserStatus(store, admin, 'u-acme-owner', 'suspended')), null);
   });
 
   /** Another company's administrators do not count towards this one's. */
   it('counts only this company’s administrators', async () => {
-    assert.equal(await codeOf(() => setUserStatus(store, rivalOwner, 'u-rival-owner', 'suspended')), 'last_admin');
+    assert.equal(await codeOf(async () => await setUserStatus(store, rivalOwner, 'u-rival-owner', 'suspended')), 'last_admin');
   });
 });
 
 describe('listing users', () => {
-  it('shows a company only its own', () => {
-    const rows = listUsers(store, acmeOwner);
+  it('shows a company only its own', async () => {
+    const rows = await listUsers(store, acmeOwner);
     assert.equal(rows.length, 3);
     assert.ok(rows.every((r) => r.company_id === ACME));
   });
 
-  it('shows the other company only its own', () => {
-    assert.equal(listUsers(store, rivalOwner).length, 1);
+  it('shows the other company only its own', async () => {
+    assert.equal((await listUsers(store, rivalOwner)).length, 1);
   });
 
-  it('never returns password hashes', () => {
-    const rows = listUsers(store, admin) as unknown as Record<string, unknown>[];
+  it('never returns password hashes', async () => {
+    const rows = await listUsers(store, admin) as unknown as Record<string, unknown>[];
     assert.ok(rows.every((r) => !('password_hash' in r)));
   });
 });
@@ -298,76 +298,76 @@ describe('devices', () => {
     ...over,
   });
 
-  it('registers one for your own company', () => {
-    assert.ok(registerDevice(store, acmeOwner, device()));
+  it('registers one for your own company', async () => {
+    assert.ok(await registerDevice(store, acmeOwner, device()));
   });
 
-  it('stops an administrator registering into another company', () => {
-    assert.throws(() => registerDevice(store, acmeOwner, device({ companyId: RIVAL })), AdminError);
+  it('stops an administrator registering into another company', async () => {
+    await assert.rejects(async () => await registerDevice(store, acmeOwner, device({ companyId: RIVAL })), AdminError);
   });
 
-  it('is refused to a technician', () => {
-    assert.throws(() => registerDevice(store, acmeField, device()), AdminError);
+  it('is refused to a technician', async () => {
+    await assert.rejects(async () => await registerDevice(store, acmeField, device()), AdminError);
   });
 
-  it('refuses a duplicate serial', () => {
+  it('refuses a duplicate serial', async () => {
     const d = device();
-    registerDevice(store, acmeOwner, d);
-    assert.throws(() => registerDevice(store, acmeOwner, d), AdminError);
+    await registerDevice(store, acmeOwner, d);
+    await assert.rejects(async () => await registerDevice(store, acmeOwner, d), AdminError);
   });
 
   /** There is no gateway cap. */
-  it('has no limit', () => {
-    for (let i = 0; i < 12; i += 1) assert.doesNotThrow(() => registerDevice(store, acmeOwner, device()));
-    assert.equal(listDevices(store, acmeOwner).length, 12);
+  it('has no limit', async () => {
+    for (let i = 0; i < 12; i += 1) await assert.doesNotReject(async () => await registerDevice(store, acmeOwner, device()));
+    assert.equal((await listDevices(store, acmeOwner)).length, 12);
   });
 
-  it('starts valid', () => {
-    const id = registerDevice(store, acmeOwner, device());
-    const row = store.get<{ security_status: string }>('SELECT security_status FROM devices WHERE id = ?', id);
+  it('starts valid', async () => {
+    const id = await registerDevice(store, acmeOwner, device());
+    const row = await store.get<{ security_status: string }>('SELECT security_status FROM devices WHERE id = ?', id);
     assert.equal(row?.security_status, 'valid');
   });
 
-  it('can be assigned to one of the company’s own packs', () => {
-    store.run(
+  it('can be assigned to one of the company’s own packs', async () => {
+    await store.run(
       'INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, created_at) VALUES (?,?,?,?,?,?)',
       'bat-1', ACME, 'BAT-1', 'LiFePO4', 24, Date.now()
     );
-    const id = registerDevice(store, acmeOwner, device({ assignedBatteryId: 'bat-1' }));
-    const row = store.get<{ assigned_battery_id: string }>('SELECT assigned_battery_id FROM devices WHERE id = ?', id);
+    const id = await registerDevice(store, acmeOwner, device({ assignedBatteryId: 'bat-1' }));
+    const row = await store.get<{ assigned_battery_id: string }>('SELECT assigned_battery_id FROM devices WHERE id = ?', id);
     assert.equal(row?.assigned_battery_id, 'bat-1');
   });
 
-  it('cannot be assigned to another company’s pack', () => {
-    store.run(
+  it('cannot be assigned to another company’s pack', async () => {
+    await store.run(
       'INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, created_at) VALUES (?,?,?,?,?,?)',
       'bat-rival', RIVAL, 'BAT-R', 'LiFePO4', 24, Date.now()
     );
-    assert.throws(
-      () => registerDevice(store, acmeOwner, device({ assignedBatteryId: 'bat-rival' })),
+    await assert.rejects(
+      async () => await registerDevice(store, acmeOwner, device({ assignedBatteryId: 'bat-rival' })),
       /not found/
     );
   });
 
   /** The app refuses any gateway that is not `valid`, so this takes one out of service. */
-  it('can be quarantined and revoked', () => {
-    const id = registerDevice(store, acmeOwner, device());
+  it('can be quarantined and revoked', async () => {
+    const id = await registerDevice(store, acmeOwner, device());
     for (const status of ['quarantined', 'revoked'] as const) {
-      setDeviceSecurityStatus(store, acmeOwner, id, status);
-      const row = store.get<{ security_status: string }>('SELECT security_status FROM devices WHERE id = ?', id);
+      await setDeviceSecurityStatus(store, acmeOwner, id, status);
+      const row = await store.get<{ security_status: string }>('SELECT security_status FROM devices WHERE id = ?', id);
       assert.equal(row?.security_status, status);
     }
   });
 
-  it('hides another company’s device', () => {
-    const id = registerDevice(store, rivalOwner, device({ companyId: RIVAL }));
-    assert.throws(() => setDeviceSecurityStatus(store, acmeOwner, id, 'revoked'), /not found/);
+  it('hides another company’s device', async () => {
+    const id = await registerDevice(store, rivalOwner, device({ companyId: RIVAL }));
+    await assert.rejects(async () => await setDeviceSecurityStatus(store, acmeOwner, id, 'revoked'), /not found/);
   });
 
-  it('lists only your own', () => {
-    registerDevice(store, acmeOwner, device());
-    registerDevice(store, rivalOwner, device({ companyId: RIVAL }));
-    assert.equal(listDevices(store, acmeOwner).length, 1);
-    assert.equal(listDevices(store, rivalOwner).length, 1);
+  it('lists only your own', async () => {
+    await registerDevice(store, acmeOwner, device());
+    await registerDevice(store, rivalOwner, device({ companyId: RIVAL }));
+    assert.equal((await listDevices(store, acmeOwner)).length, 1);
+    assert.equal((await listDevices(store, rivalOwner)).length, 1);
   });
 });

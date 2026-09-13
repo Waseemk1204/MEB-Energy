@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { FastifyInstance } from 'fastify';
-import { createStore, type Store } from '../db/client.js';
+import type { Store } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
 import { secretFrom } from '../auth/tokens.js';
 import { NO_PASSWORD } from '../auth/invitations.js';
@@ -9,7 +9,7 @@ import { seedParameterDefinitions } from '../policy/seed.js';
 import type { Dispatcher } from '../policy/writeService.js';
 import { createLimiter } from './rateLimit.js';
 import { buildServer } from '../server.js';
-import { seedCompany } from '../db/testFixtures.js';
+import { createTestStore, seedCompany } from '../db/testFixtures.js';
 
 /**
  * Inviting somebody, over HTTP, the way the console does it.
@@ -26,17 +26,17 @@ let app: FastifyInstance;
 const dispatcher: Dispatcher = { send: async ({ value }) => ({ result: 'success', readBack: value }) };
 
 beforeEach(async () => {
-  store = createStore();
-  seedParameterDefinitions(store);
+  store = await createTestStore();
+  await seedParameterDefinitions(store);
   const now = Date.now();
   const hash = await hashPassword(PASSWORD, CHEAP);
 
-  seedCompany(store, ACME, 'Acme EV', now);
-  store.run(
+  await seedCompany(store, ACME, 'Acme EV', now);
+  await store.run(
     'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
     'u-admin', ACME, 'ops@acme.example', 'Ops', 'company', hash, 'active', now
   );
-  store.run(
+  await store.run(
     'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
     'u-admin-2', ACME, 'ops2@acme.example', 'Ops Two', 'company', hash, 'active', now
   );
@@ -108,7 +108,7 @@ describe('creating a user by invitation', () => {
    */
   it('stores no usable password hash', async () => {
     await invite();
-    const row = store.get<{ password_hash: string; status: string }>(
+    const row = await store.get<{ password_hash: string; status: string }>(
       'SELECT password_hash, status FROM users WHERE email = ?',
       'new@acme.example'
     );

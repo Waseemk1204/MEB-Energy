@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { createStore, type Store } from '../db/client.js';
+import type { Store } from '../db/client.js';
 import type { Principal } from '../db/tenancy.js';
 import {
   SESSION_STALE_MS,
@@ -11,7 +11,7 @@ import {
   openSession,
   reapStaleSessions,
 } from './bleSession.js';
-import { seedCompany } from '../db/testFixtures.js';
+import { createTestStore, seedCompany } from '../db/testFixtures.js';
 
 /**
  * Mode 1 (PRD §7.3) only means something if presence is a fact the server
@@ -30,21 +30,21 @@ const OTHER_BATTERY = 'bat-acme-2';
 const tech: Principal = { userId: 'u-tech', role: 'user', companyId: ACME };
 const otherTech: Principal = { userId: 'u-other', role: 'user', companyId: ACME };
 
-beforeEach(() => {
-  store = createStore();
+beforeEach(async () => {
+  store = await createTestStore();
   const now = Date.now();
-  seedCompany(store, ACME, 'Acme', now);
+  await seedCompany(store, ACME, 'Acme', now);
   for (const [id, serial] of [
     [BATTERY, 'BAT-1'],
     [OTHER_BATTERY, 'BAT-2'],
   ] as const) {
-    store.run(
+    await store.run(
       'INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, created_at) VALUES (?,?,?,?,?,?)',
       id, ACME, serial, 'LiFePO4', 24, now
     );
   }
   for (const p of [tech, otherTech]) {
-    store.run(
+    await store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, created_at) VALUES (?,?,?,?,?,?,?)',
       p.userId, ACME, `${p.userId}@acme.example`, p.userId, 'user', 'x', now
     );
@@ -54,45 +54,45 @@ beforeEach(() => {
 afterEach(() => store.close());
 
 describe('opening a session', () => {
-  it('makes the battery reachable', () => {
-    assert.equal(isSessionActive(store, BATTERY), false);
-    openSession(store, tech, BATTERY, ACME);
-    assert.equal(isSessionActive(store, BATTERY), true);
+  it('makes the battery reachable', async () => {
+    assert.equal(await isSessionActive(store, BATTERY), false);
+    await openSession(store, tech, BATTERY, ACME);
+    assert.equal(await isSessionActive(store, BATTERY), true);
   });
 
   /** Reconnecting after a dropped link must not pile up sessions. */
-  it('is idempotent for the same user and battery', () => {
-    const first = openSession(store, tech, BATTERY, ACME);
-    const second = openSession(store, tech, BATTERY, ACME);
+  it('is idempotent for the same user and battery', async () => {
+    const first = await openSession(store, tech, BATTERY, ACME);
+    const second = await openSession(store, tech, BATTERY, ACME);
     assert.equal(first, second);
-    assert.equal(store.all('SELECT id FROM ble_sessions').length, 1);
+    assert.equal((await store.all('SELECT id FROM ble_sessions')).length, 1);
   });
 
-  it('does not make other batteries reachable', () => {
-    openSession(store, tech, BATTERY, ACME);
-    assert.equal(isSessionActive(store, OTHER_BATTERY), false);
+  it('does not make other batteries reachable', async () => {
+    await openSession(store, tech, BATTERY, ACME);
+    assert.equal(await isSessionActive(store, OTHER_BATTERY), false);
   });
 });
 
 describe('heartbeats', () => {
-  it('keeps a session alive past the timeout', () => {
+  it('keeps a session alive past the timeout', async () => {
     const start = Date.now();
-    openSession(store, tech, BATTERY, ACME, null, start);
-    assert.equal(isSessionActive(store, BATTERY, start + SESSION_STALE_MS + 1), false);
+    await openSession(store, tech, BATTERY, ACME, null, start);
+    assert.equal(await isSessionActive(store, BATTERY, start + SESSION_STALE_MS + 1), false);
 
-    heartbeat(store, tech, BATTERY, start + SESSION_STALE_MS - 1);
-    assert.equal(isSessionActive(store, BATTERY, start + SESSION_STALE_MS + 1), true);
+    await heartbeat(store, tech, BATTERY, start + SESSION_STALE_MS - 1);
+    assert.equal(await isSessionActive(store, BATTERY, start + SESSION_STALE_MS + 1), true);
   });
 
-  it('reports failure when there is no session to refresh', () => {
-    assert.equal(heartbeat(store, tech, BATTERY), false);
+  it('reports failure when there is no session to refresh', async () => {
+    assert.equal(await heartbeat(store, tech, BATTERY), false);
   });
 
-  it('will not revive a closed session', () => {
-    openSession(store, tech, BATTERY, ACME);
-    closeSession(store, tech, BATTERY);
-    assert.equal(heartbeat(store, tech, BATTERY), false);
-    assert.equal(isSessionActive(store, BATTERY), false);
+  it('will not revive a closed session', async () => {
+    await openSession(store, tech, BATTERY, ACME);
+    await closeSession(store, tech, BATTERY);
+    assert.equal(await heartbeat(store, tech, BATTERY), false);
+    assert.equal(await isSessionActive(store, BATTERY), false);
   });
 });
 
@@ -101,36 +101,36 @@ describe('heartbeats', () => {
  * anyone. Silence has to mean gone, or a dead link stays writable.
  */
 describe('a link that goes quiet', () => {
-  it('is treated as gone once heartbeats stop', () => {
+  it('is treated as gone once heartbeats stop', async () => {
     const start = Date.now();
-    openSession(store, tech, BATTERY, ACME, null, start);
-    assert.equal(isSessionActive(store, BATTERY, start + SESSION_STALE_MS - 1), true);
-    assert.equal(isSessionActive(store, BATTERY, start + SESSION_STALE_MS), false);
+    await openSession(store, tech, BATTERY, ACME, null, start);
+    assert.equal(await isSessionActive(store, BATTERY, start + SESSION_STALE_MS - 1), true);
+    assert.equal(await isSessionActive(store, BATTERY, start + SESSION_STALE_MS), false);
   });
 
-  it('is reaped so it stops being listed as open', () => {
+  it('is reaped so it stops being listed as open', async () => {
     const start = Date.now();
-    openSession(store, tech, BATTERY, ACME, null, start);
-    reapStaleSessions(store, start + SESSION_STALE_MS + 1);
-    const row = store.get<{ ended_at: number | null }>('SELECT ended_at FROM ble_sessions');
+    await openSession(store, tech, BATTERY, ACME, null, start);
+    await reapStaleSessions(store, start + SESSION_STALE_MS + 1);
+    const row = await store.get<{ ended_at: number | null }>('SELECT ended_at FROM ble_sessions');
     assert.ok(row?.ended_at);
   });
 });
 
 describe('closing', () => {
-  it('ends the session immediately', () => {
-    openSession(store, tech, BATTERY, ACME);
-    closeSession(store, tech, BATTERY);
-    assert.equal(isSessionActive(store, BATTERY), false);
+  it('ends the session immediately', async () => {
+    await openSession(store, tech, BATTERY, ACME);
+    await closeSession(store, tech, BATTERY);
+    assert.equal(await isSessionActive(store, BATTERY), false);
   });
 
-  it('closes only the caller’s own session', () => {
-    openSession(store, tech, BATTERY, ACME);
-    openSession(store, otherTech, BATTERY, ACME);
-    closeSession(store, tech, BATTERY);
+  it('closes only the caller’s own session', async () => {
+    await openSession(store, tech, BATTERY, ACME);
+    await openSession(store, otherTech, BATTERY, ACME);
+    await closeSession(store, tech, BATTERY);
     // Someone is still on site, so the battery stays reachable.
-    assert.equal(isSessionActive(store, BATTERY), true);
-    assert.equal(activeSessionFor(store, BATTERY)?.userId, otherTech.userId);
+    assert.equal(await isSessionActive(store, BATTERY), true);
+    assert.equal((await activeSessionFor(store, BATTERY))?.userId, otherTech.userId);
   });
 });
 
@@ -140,22 +140,22 @@ describe('closing', () => {
  * the technician's link.
  */
 describe('what the policy engine asks', () => {
-  it('reports whoever is present, not who is asking', () => {
-    openSession(store, otherTech, BATTERY, ACME);
-    const session = activeSessionFor(store, BATTERY);
+  it('reports whoever is present, not who is asking', async () => {
+    await openSession(store, otherTech, BATTERY, ACME);
+    const session = await activeSessionFor(store, BATTERY);
     assert.equal(session?.userId, otherTech.userId);
   });
 
-  it('prefers the most recent heartbeat when two are on site', () => {
+  it('prefers the most recent heartbeat when two are on site', async () => {
     const start = Date.now();
-    openSession(store, tech, BATTERY, ACME, null, start);
-    openSession(store, otherTech, BATTERY, ACME, null, start);
-    heartbeat(store, otherTech, BATTERY, start + 100);
-    assert.equal(activeSessionFor(store, BATTERY, start + 200)?.userId, otherTech.userId);
+    await openSession(store, tech, BATTERY, ACME, null, start);
+    await openSession(store, otherTech, BATTERY, ACME, null, start);
+    await heartbeat(store, otherTech, BATTERY, start + 100);
+    assert.equal((await activeSessionFor(store, BATTERY, start + 200))?.userId, otherTech.userId);
   });
 
-  it('returns null when nobody is present', () => {
-    assert.equal(activeSessionFor(store, BATTERY), null);
+  it('returns null when nobody is present', async () => {
+    assert.equal(await activeSessionFor(store, BATTERY), null);
   });
 });
 

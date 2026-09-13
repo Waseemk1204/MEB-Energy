@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { FastifyInstance } from 'fastify';
-import { createStore, type Store } from '../db/client.js';
-import { seedCompany } from '../db/testFixtures.js';
+import type { Store } from '../db/client.js';
+import { createTestStore, seedCompany } from '../db/testFixtures.js';
 import { hashPassword } from '../auth/password.js';
 import { secretFrom } from '../auth/tokens.js';
 import { JBD_SP24S004, seedParameterDefinitions } from '../policy/seed.js';
@@ -30,18 +30,18 @@ let batteryId: string;
 const dispatcher: Dispatcher = { send: async ({ value }) => ({ result: 'success', readBack: value }) };
 
 beforeEach(async () => {
-  store = createStore();
-  seedParameterDefinitions(store);
+  store = await createTestStore();
+  await seedParameterDefinitions(store);
   const now = Date.now();
   const hash = await hashPassword(PASSWORD, CHEAP);
 
-  seedCompany(store, ACME, 'Acme EV', now);
+  await seedCompany(store, ACME, 'Acme EV', now);
   for (const [id, company, email, role] of [
     ['u-owner', ACME, 'owner@acme.example', 'company'],
     ['u-owner-2', ACME, 'owner2@acme.example', 'company'],
     ['u-tech', ACME, 'tech@acme.example', 'user'],
   ] as const) {
-    store.run(
+    await store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
       id, company, email, role, role, hash, 'active', now
     );
@@ -50,7 +50,7 @@ beforeEach(async () => {
   batteryId = 'bat-1';
   // The BMS model matters: parameter definitions are scoped to it, and a
   // battery without one has no writable parameters at all.
-  store.run(
+  await store.run(
     `INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, bms_model, bms_firmware, created_at)
      VALUES (?,?,?,?,?,?,?,?)`,
     batteryId, ACME, 'BAT-0001', 'LiFePO4', 24, JBD_SP24S004, 'FW 1.2.4', now
@@ -173,8 +173,8 @@ describe('who may change permissions', () => {
    * who does.
    */
   it('hides another tenant’s user behind a 404', async () => {
-    seedCompany(store, 'company-rival', 'Rival', Date.now());
-    store.run(
+    await seedCompany(store, 'company-rival', 'Rival', Date.now());
+    await store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
       'u-rival', 'company-rival', 'tech@rival.example', 'R', 'user', 'x', 'active', Date.now()
     );
@@ -214,7 +214,7 @@ describe('an administrator', () => {
   });
 
   it('holds every permission whatever the columns say', async () => {
-    store.run('UPDATE users SET can_read = 0, can_write = 0 WHERE id = ?', 'u-owner');
+    await store.run('UPDATE users SET can_read = 0, can_write = 0 WHERE id = ?', 'u-owner');
     assert.equal((await readBattery('owner@acme.example')).statusCode, 200);
   });
 });
@@ -248,8 +248,8 @@ describe('listing users for the people screen', () => {
    * query regardless, so the caller gets their own rows and nobody else's.
    */
   it('cannot be used to reach another company', async () => {
-    seedCompany(store, 'company-rival', 'Rival', Date.now());
-    store.run(
+    await seedCompany(store, 'company-rival', 'Rival', Date.now());
+    await store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
       'u-rival', 'company-rival', 'tech@rival.example', 'R', 'user', 'x', 'active', Date.now()
     );

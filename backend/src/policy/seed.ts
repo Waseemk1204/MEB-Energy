@@ -101,13 +101,15 @@ export const JBD_SEEDS: Seed[] = [
   }),
 ];
 
-export function seedParameterDefinitions(store: Store, bms = JBD_SP24S004): number {
-  const insert = (s: Seed) =>
-    store.run(
-      `INSERT OR IGNORE INTO parameter_definitions
+export async function seedParameterDefinitions(store: Store, bms = JBD_SP24S004): Promise<number> {
+  const insert = async (s: Seed) =>
+    await store.run(
+      // ON CONFLICT DO NOTHING is the spelling both dialects share.
+      `INSERT INTO parameter_definitions
        (id, parameter_key, display_name, unit, data_type, min_value, max_value,
         danger_level, supported_bms, readable, writable, requires_confirmation, requires_admin)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+       ON CONFLICT DO NOTHING`,
       randomUUID(),
       s.parameterKey,
       s.displayName,
@@ -123,7 +125,9 @@ export function seedParameterDefinitions(store: Store, bms = JBD_SP24S004): numb
       s.requiresAdmin ? 1 : 0
     );
 
-  store.transaction(() => JBD_SEEDS.forEach(insert));
+  await store.transaction(async () => {
+    for (const s of JBD_SEEDS) await insert(s);
+  });
   return JBD_SEEDS.length;
 }
 
@@ -157,12 +161,12 @@ const toDefinition = (r: DefinitionRow): ParameterDefinition => ({
   requiresAdmin: !!r.requires_admin,
 });
 
-export function findDefinition(
+export async function findDefinition(
   store: Store,
   parameterKey: string,
   bmsModel: string
-): ParameterDefinition | undefined {
-  const row = store.get<DefinitionRow>(
+): Promise<ParameterDefinition | undefined> {
+  const row = await store.get<DefinitionRow>(
     'SELECT * FROM parameter_definitions WHERE parameter_key = ? AND supported_bms = ?',
     parameterKey,
     bmsModel
@@ -171,11 +175,11 @@ export function findDefinition(
 }
 
 /** The capability profile a client renders its controls from. */
-export function capabilityProfile(store: Store, bmsModel: string): ParameterDefinition[] {
-  return store
-    .all<DefinitionRow>(
+export async function capabilityProfile(store: Store, bmsModel: string): Promise<ParameterDefinition[]> {
+  return (
+    await store.all<DefinitionRow>(
       'SELECT * FROM parameter_definitions WHERE supported_bms = ? ORDER BY parameter_key',
       bmsModel
     )
-    .map(toDefinition);
+  ).map(toDefinition);
 }

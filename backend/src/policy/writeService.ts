@@ -64,7 +64,7 @@ export async function performWrite(
   context: WriteContext,
   policy: CompanyPolicy = {}
 ): Promise<WriteOutcome> {
-  const battery = store.get<BatteryRow>(
+  const battery = await store.get<BatteryRow>(
     'SELECT id, company_id, bms_model, bms_firmware FROM batteries WHERE id = ?',
     context.batteryId
   );
@@ -77,10 +77,10 @@ export async function performWrite(
   // Established from the server's own record of heartbeats, never from the
   // request. A caller asserting presence is not evidence of presence, and for
   // an admin remote write the caller could not know in any case.
-  const session = activeSessionFor(store, battery.id);
+  const session = await activeSessionFor(store, battery.id);
 
   const bmsModel = battery.bms_model ?? 'unknown';
-  const definition = findDefinition(store, parameterKey, bmsModel);
+  const definition = await findDefinition(store, parameterKey, bmsModel);
 
   const request: WriteRequest = {
     parameterKey,
@@ -111,7 +111,7 @@ export async function performWrite(
 
   if (!decision.allowed) {
     // Refused before the radio. Still recorded, still attributable.
-    const auditId = recordAudit(store, {
+    const auditId = await recordAudit(store, {
       ...base,
       source: principal.role === 'company' ? 'admin_remote' : 'local',
       result: 'rejected',
@@ -146,7 +146,7 @@ export async function performWrite(
     bmsResponse = error instanceof Error ? error.message : 'dispatch failed';
   }
 
-  const auditId = recordAudit(store, {
+  const auditId = await recordAudit(store, {
     ...base,
     newValue: readBack !== undefined ? String(readBack) : String(value),
     source: decision.source,

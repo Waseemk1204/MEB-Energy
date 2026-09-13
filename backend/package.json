@@ -6,7 +6,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.check.json"
+    "typecheck": "tsc -p tsconfig.check.json",
+    "test:postgres": "TEST_DB=postgres node --import tsx --test --test-timeout=60000 \"src/**/*.test.ts\""
   },
   "keywords": [],
   "author": "",
@@ -15,13 +16,20 @@
   "dependencies": {
     "fastify": "^5.12.3",
     "jose": "^6.2.12",
+    "pg": "^8.23.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
     "@types/node": "^26.4.1",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
   },
   "private": true,
-  "type": "module"
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  }
 }

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { createStore, type Store } from '../db/client.js';
+import type { Store } from '../db/client.js';
 import { DEFAULT_COST, hashPassword, needsRehash, verifyPassword } from './password.js';
 import { NO_PASSWORD } from './invitations.js';
 import {
@@ -15,7 +15,7 @@ import {
   verifyAccessToken,
 } from './tokens.js';
 import type { Principal } from '../db/tenancy.js';
-import { seedCompany } from '../db/testFixtures.js';
+import { createTestStore, seedCompany } from '../db/testFixtures.js';
 
 /** Cheap parameters so the suite stays fast; production uses DEFAULT_COST. */
 const TEST_COST = { N: 2 ** 12, r: 8, p: 1 };
@@ -26,11 +26,11 @@ let store: Store;
 const USER = 'user-1';
 const COMPANY = 'company-acme';
 
-beforeEach(() => {
-  store = createStore();
+beforeEach(async () => {
+  store = await createTestStore();
   const now = Date.now();
-  seedCompany(store, COMPANY, 'Acme EV', now);
-  store.run(
+  await seedCompany(store, COMPANY, 'Acme EV', now);
+  await store.run(
     'INSERT INTO users (id, company_id, email, display_name, role, password_hash, created_at) VALUES (?,?,?,?,?,?,?)',
     USER,
     COMPANY,
@@ -85,7 +85,7 @@ describe('password hashing', () => {
   });
 
   it('refuses an empty password', async () => {
-    await assert.rejects(() => hashPassword('', TEST_COST), /must not be empty/);
+    await assert.rejects(async () => await hashPassword('', TEST_COST), /must not be empty/);
   });
 
   /** A corrupt record must fail closed, not crash the sign-in path. */
@@ -112,21 +112,21 @@ describe('access tokens', () => {
 
   it('rejects a token signed with another secret', async () => {
     const token = await issueAccessToken(principal, secretFrom('a-different-secret-of-enough-length!!'));
-    await assert.rejects(() => verifyAccessToken(token, SECRET), AuthError);
+    await assert.rejects(async () => await verifyAccessToken(token, SECRET), AuthError);
   });
 
   it('rejects a tampered token', async () => {
     const token = await issueAccessToken(principal, SECRET);
     const [h, p, s] = token.split('.');
     const forged = `${h}.${Buffer.from('{"sub":"attacker","role":"admin","cid":null}').toString('base64url')}.${s}`;
-    await assert.rejects(() => verifyAccessToken(forged, SECRET), AuthError);
+    await assert.rejects(async () => await verifyAccessToken(forged, SECRET), AuthError);
   });
 
   it('rejects an expired token', async () => {
     const past = Math.floor(Date.now() / 1000) - ACCESS_TTL_SECONDS - 60;
     const token = await issueAccessToken(principal, SECRET, past);
     await assert.rejects(
-      () => verifyAccessToken(token, SECRET),
+      async () => await verifyAccessToken(token, SECRET),
       (e: AuthError) => e.code === 'expired_token'
     );
   });
@@ -142,12 +142,12 @@ describe('access tokens', () => {
       { userId: 'x', role: 'admin' as never, companyId: 'company-acme' },
       SECRET
     );
-    await assert.rejects(() => verifyAccessToken(token, SECRET), /unknown role/);
+    await assert.rejects(async () => await verifyAccessToken(token, SECRET), /unknown role/);
   });
 
   it('rejects a token with no tenant', async () => {
     const token = await issueAccessToken({ userId: 'x', role: 'user', companyId: null as never }, SECRET);
-    await assert.rejects(() => verifyAccessToken(token, SECRET), /missing required claims/);
+    await assert.rejects(async () => await verifyAccessToken(token, SECRET), /missing required claims/);
   });
 
   it('is short-lived', () => {
@@ -160,23 +160,23 @@ describe('access tokens', () => {
 });
 
 describe('refresh tokens', () => {
-  it('issues a token that is not stored in the clear', () => {
-    const { token } = issueRefreshToken(store, USER);
-    const rows = store.all<{ token_hash: string }>('SELECT token_hash FROM refresh_tokens');
+  it('issues a token that is not stored in the clear', async () => {
+    const { token } = await issueRefreshToken(store, USER);
+    const rows = await store.all<{ token_hash: string }>('SELECT token_hash FROM refresh_tokens');
     assert.equal(rows.length, 1);
     assert.notEqual(rows[0]!.token_hash, token);
   });
 
-  it('rotates to a new token', () => {
-    const first = issueRefreshToken(store, USER);
-    const second = rotateRefreshToken(store, first.token);
+  it('rotates to a new token', async () => {
+    const first = await issueRefreshToken(store, USER);
+    const second = await rotateRefreshToken(store, first.token);
     assert.notEqual(second.token, first.token);
   });
 
-  it('marks the old token as replaced by the new one', () => {
-    const first = issueRefreshToken(store, USER);
-    const second = rotateRefreshToken(store, first.token);
-    const row = store.get<{ revoked_at: number; replaced_by: string }>(
+  it('marks the old token as replaced by the new one', async () => {
+    const first = await issueRefreshToken(store, USER);
+    const second = await rotateRefreshToken(store, first.token);
+    const row = await store.get<{ revoked_at: number; replaced_by: string }>(
       'SELECT revoked_at, replaced_by FROM refresh_tokens WHERE id = ?',
       first.id
     );
@@ -184,17 +184,17 @@ describe('refresh tokens', () => {
     assert.equal(row?.replaced_by, second.id);
   });
 
-  it('rejects a token it has never seen', () => {
-    assert.throws(
-      () => rotateRefreshToken(store, 'not-a-real-token'),
+  it('rejects a token it has never seen', async () => {
+    await assert.rejects(
+      async () => await rotateRefreshToken(store, 'not-a-real-token'),
       (e: AuthError) => e.code === 'unknown_token'
     );
   });
 
-  it('rejects an expired token', () => {
-    const { token } = issueRefreshToken(store, USER, Date.now() - 40 * 24 * 60 * 60 * 1000);
-    assert.throws(
-      () => rotateRefreshToken(store, token),
+  it('rejects an expired token', async () => {
+    const { token } = await issueRefreshToken(store, USER, Date.now() - 40 * 24 * 60 * 60 * 1000);
+    await assert.rejects(
+      async () => await rotateRefreshToken(store, token),
       (e: AuthError) => e.code === 'expired_token'
     );
   });
@@ -205,37 +205,37 @@ describe('refresh tokens', () => {
    * safe to assume — so the whole chain goes.
    */
   describe('reuse detection', () => {
-    it('rejects a token that has already been rotated', () => {
-      const first = issueRefreshToken(store, USER);
-      rotateRefreshToken(store, first.token);
-      assert.throws(
-        () => rotateRefreshToken(store, first.token),
+    it('rejects a token that has already been rotated', async () => {
+      const first = await issueRefreshToken(store, USER);
+      await rotateRefreshToken(store, first.token);
+      await assert.rejects(
+        async () => await rotateRefreshToken(store, first.token),
         (e: AuthError) => e.code === 'reuse_detected'
       );
     });
 
-    it('revokes the entire chain, not just the replayed token', () => {
-      const first = issueRefreshToken(store, USER);
-      const second = rotateRefreshToken(store, first.token);
-      const third = rotateRefreshToken(store, second.token);
+    it('revokes the entire chain, not just the replayed token', async () => {
+      const first = await issueRefreshToken(store, USER);
+      const second = await rotateRefreshToken(store, first.token);
+      const third = await rotateRefreshToken(store, second.token);
 
       try {
-        rotateRefreshToken(store, first.token);
+        await rotateRefreshToken(store, first.token);
       } catch {
         /* expected */
       }
 
       // The newest token, held by whoever was legitimate, is dead too.
-      assert.throws(
-        () => rotateRefreshToken(store, third.token),
+      await assert.rejects(
+        async () => await rotateRefreshToken(store, third.token),
         (e: AuthError) => e.code === 'reuse_detected' || e.code === 'unknown_token'
       );
-      const live = store.all('SELECT id FROM refresh_tokens WHERE revoked_at IS NULL');
+      const live = await store.all('SELECT id FROM refresh_tokens WHERE revoked_at IS NULL');
       assert.equal(live.length, 0);
     });
 
-    it('does not touch another user’s sessions', () => {
-      store.run(
+    it('does not touch another user’s sessions', async () => {
+      await store.run(
         'INSERT INTO users (id, company_id, email, display_name, role, password_hash, created_at) VALUES (?,?,?,?,?,?,?)',
         'user-2',
         COMPANY,
@@ -245,37 +245,37 @@ describe('refresh tokens', () => {
         'x',
         Date.now()
       );
-      const mine = issueRefreshToken(store, USER);
-      const theirs = issueRefreshToken(store, 'user-2');
-      rotateRefreshToken(store, mine.token);
+      const mine = await issueRefreshToken(store, USER);
+      const theirs = await issueRefreshToken(store, 'user-2');
+      await rotateRefreshToken(store, mine.token);
       try {
-        rotateRefreshToken(store, mine.token);
+        await rotateRefreshToken(store, mine.token);
       } catch {
         /* expected */
       }
-      assert.doesNotThrow(() => rotateRefreshToken(store, theirs.token));
+      await assert.doesNotReject(async () => await rotateRefreshToken(store, theirs.token));
     });
   });
 
   describe('sign-out', () => {
-    it('revokes the presented token', () => {
-      const { token } = issueRefreshToken(store, USER);
-      revokeRefreshToken(store, token);
-      assert.throws(
-        () => rotateRefreshToken(store, token),
+    it('revokes the presented token', async () => {
+      const { token } = await issueRefreshToken(store, USER);
+      await revokeRefreshToken(store, token);
+      await assert.rejects(
+        async () => await rotateRefreshToken(store, token),
         (e: AuthError) => e.code === 'reuse_detected'
       );
     });
 
-    it('is idempotent for an unknown token', () => {
-      assert.doesNotThrow(() => revokeRefreshToken(store, 'never-existed'));
+    it('is idempotent for an unknown token', async () => {
+      await assert.doesNotReject(async () => await revokeRefreshToken(store, 'never-existed'));
     });
 
-    it('revokes every session for a user on demand', () => {
-      issueRefreshToken(store, USER);
-      issueRefreshToken(store, USER);
-      revokeAllForUser(store, USER);
-      assert.equal(store.all('SELECT id FROM refresh_tokens WHERE revoked_at IS NULL').length, 0);
+    it('revokes every session for a user on demand', async () => {
+      await issueRefreshToken(store, USER);
+      await issueRefreshToken(store, USER);
+      await revokeAllForUser(store, USER);
+      assert.equal((await store.all('SELECT id FROM refresh_tokens WHERE revoked_at IS NULL')).length, 0);
     });
   });
 });
@@ -340,7 +340,7 @@ describe('a stored hash that is not one', () => {
   /** Returns false rather than throwing — the sign-in path must not crash. */
   it('does not throw on any of them', async () => {
     for (const stored of ['', '$invited$', 'nonsense', 'scrypt$$$$$', 'a$b$c$d$e$f']) {
-      await assert.doesNotReject(() => verifyPassword(NOTHING, stored));
+      await assert.doesNotReject(async () => await verifyPassword(NOTHING, stored));
     }
   });
 

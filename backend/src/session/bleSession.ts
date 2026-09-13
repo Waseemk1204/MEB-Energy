@@ -45,27 +45,27 @@ export interface ActiveSession {
  * Opens or refreshes this user's session on a battery. Idempotent: reconnecting
  * after a dropped link should not accumulate sessions.
  */
-export function openSession(
+export async function openSession(
   store: Store,
   principal: Principal,
   batteryId: string,
   companyId: string,
   deviceId: string | null = null,
   now = Date.now()
-): string {
-  const existing = store.get<BleSessionRow>(
+): Promise<string> {
+  const existing = await store.get<BleSessionRow>(
     'SELECT * FROM ble_sessions WHERE battery_id = ? AND user_id = ? AND ended_at IS NULL',
     batteryId,
     principal.userId
   );
 
   if (existing) {
-    store.run('UPDATE ble_sessions SET last_heartbeat_at = ? WHERE id = ?', now, existing.id);
+    await store.run('UPDATE ble_sessions SET last_heartbeat_at = ? WHERE id = ?', now, existing.id);
     return existing.id;
   }
 
   const id = randomUUID();
-  store.run(
+  await store.run(
     `INSERT INTO ble_sessions
      (id, company_id, battery_id, user_id, device_id, started_at, last_heartbeat_at)
      VALUES (?,?,?,?,?,?,?)`,
@@ -81,29 +81,29 @@ export function openSession(
 }
 
 /** Returns false when the session has already ended or never existed. */
-export function heartbeat(
+export async function heartbeat(
   store: Store,
   principal: Principal,
   batteryId: string,
   now = Date.now()
-): boolean {
-  const row = store.get<BleSessionRow>(
+): Promise<boolean> {
+  const row = await store.get<BleSessionRow>(
     'SELECT id FROM ble_sessions WHERE battery_id = ? AND user_id = ? AND ended_at IS NULL',
     batteryId,
     principal.userId
   );
   if (!row) return false;
-  store.run('UPDATE ble_sessions SET last_heartbeat_at = ? WHERE id = ?', now, row.id);
+  await store.run('UPDATE ble_sessions SET last_heartbeat_at = ? WHERE id = ?', now, row.id);
   return true;
 }
 
-export function closeSession(
+export async function closeSession(
   store: Store,
   principal: Principal,
   batteryId: string,
   now = Date.now()
-): void {
-  store.run(
+): Promise<void> {
+  await store.run(
     'UPDATE ble_sessions SET ended_at = ? WHERE battery_id = ? AND user_id = ? AND ended_at IS NULL',
     now,
     batteryId,
@@ -119,12 +119,12 @@ export function closeSession(
  * writing remotely has no session of their own and never will — what makes
  * their command deliverable is the technician's.
  */
-export function activeSessionFor(
+export async function activeSessionFor(
   store: Store,
   batteryId: string,
   now = Date.now()
-): ActiveSession | null {
-  const row = store.get<BleSessionRow>(
+): Promise<ActiveSession | null> {
+  const row = await store.get<BleSessionRow>(
     `SELECT * FROM ble_sessions
      WHERE battery_id = ? AND ended_at IS NULL AND last_heartbeat_at > ?
      ORDER BY last_heartbeat_at DESC`,
@@ -141,12 +141,12 @@ export function activeSessionFor(
     : null;
 }
 
-export const isSessionActive = (store: Store, batteryId: string, now = Date.now()): boolean =>
-  activeSessionFor(store, batteryId, now) !== null;
+export const isSessionActive = async (store: Store, batteryId: string, now = Date.now()): Promise<boolean> =>
+  (await activeSessionFor(store, batteryId, now)) !== null;
 
 /** Housekeeping: mark timed-out sessions as ended so they stop being listed. */
-export function reapStaleSessions(store: Store, now = Date.now()): void {
-  store.run(
+export async function reapStaleSessions(store: Store, now = Date.now()): Promise<void> {
+  await store.run(
     'UPDATE ble_sessions SET ended_at = last_heartbeat_at WHERE ended_at IS NULL AND last_heartbeat_at <= ?',
     now - SESSION_STALE_MS
   );

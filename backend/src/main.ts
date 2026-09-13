@@ -1,7 +1,5 @@
-import { createStore } from './db/client.js';
+import { openStore } from './db/open.js';
 import { secretFrom } from './auth/tokens.js';
-import { seedParameterDefinitions } from './policy/seed.js';
-import { bootstrapCompany } from './company/bootstrap.js';
 import { parseOrigins } from './http/cors.js';
 import { buildServer } from './server.js';
 import type { Dispatcher } from './policy/writeService.js';
@@ -34,23 +32,13 @@ function requiredEnv(name: string): string {
 
 async function main(): Promise<void> {
   const port = Number(process.env.PORT ?? 3000);
-  const dbFile = process.env.DATABASE_FILE ?? 'company.db';
-
-  const store = createStore(dbFile);
-  const seeded = seedParameterDefinitions(store);
-
-  // Only ever fires on a database with no users at all — see company/bootstrap.
-  const bootstrap = await bootstrapCompany(store, {
-    companyName: process.env.COMPANY_NAME,
-    email: process.env.BOOTSTRAP_ADMIN_EMAIL,
-    password: process.env.BOOTSTRAP_ADMIN_PASSWORD,
-  });
+  const { store, seeded, bootstrap } = await openStore(process.env);
   if (bootstrap.kind === 'created') {
     console.log(
       `Created ${bootstrap.companyName} and its first administrator: ${bootstrap.email}`
     );
   } else if (bootstrap.reason === 'not_configured') {
-    const empty = store.get<{ n: number }>('SELECT COUNT(*) AS n FROM users');
+    const empty = await store.get<{ n: number }>('SELECT COUNT(*) AS n FROM users');
     if ((empty?.n ?? 0) === 0) {
       console.warn(
         'No users exist and no BOOTSTRAP_ADMIN_EMAIL/BOOTSTRAP_ADMIN_PASSWORD were set. ' +
@@ -78,14 +66,15 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string) => {
     console.log(`${signal} received, closing`);
     await app.close();
-    store.close();
+    await store.close();
     process.exit(0);
   };
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
   await app.listen({ port, host: '0.0.0.0' });
-  console.log(`API listening on :${port} (db ${dbFile}, ${seeded} parameters)`);
+  const where = process.env.DATABASE_URL ? 'postgres' : (process.env.DATABASE_FILE ?? 'company.db');
+  console.log(`API listening on :${port} (db ${where}, ${seeded} parameters)`);
 }
 
 main().catch((error) => {

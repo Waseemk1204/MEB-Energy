@@ -53,16 +53,16 @@ interface LastRow {
  * Samples arrive as a batch — the app buffers while offline and uploads on
  * reconnect, so they are not necessarily recent and not necessarily in order.
  */
-export function ingestSamples(
+export async function ingestSamples(
   store: Store,
   companyId: string,
   batteryId: string,
   samples: Sample[],
   sessionId: string | null = null
-): IngestResult {
+): Promise<IngestResult> {
   const ordered = [...samples].sort((a, b) => a.recordedAt - b.recordedAt);
 
-  let last = store.get<LastRow>(
+  let last = await store.get<LastRow>(
     'SELECT recorded_at, fault_count FROM telemetry_readings WHERE battery_id = ? ORDER BY recorded_at DESC LIMIT 1',
     batteryId
   );
@@ -70,7 +70,7 @@ export function ingestSamples(
   let stored = 0;
   let keptForStateChange = 0;
 
-  store.transaction(() => {
+  await store.transaction(async () => {
     for (const s of ordered) {
       const changedState = last !== undefined && s.faultCount !== last.fault_count;
       const dueBySchedule =
@@ -79,7 +79,7 @@ export function ingestSamples(
       if (!dueBySchedule && !changedState) continue;
       if (changedState && !dueBySchedule) keptForStateChange += 1;
 
-      store.run(
+      await store.run(
         `INSERT INTO telemetry_readings
          (id, company_id, battery_id, session_id, recorded_at, soc, pack_voltage, pack_current,
           temperature_c, min_cell_v, max_cell_v, delta_mv, fault_count, balancing)
@@ -125,11 +125,11 @@ export interface HistoryQuery {
 }
 
 /** Tenant-scoped like everything else; a foreign battery simply has no rows. */
-export function queryHistory(
+export async function queryHistory(
   store: Store,
   principal: Principal,
   query: HistoryQuery
-): HistoryRow[] {
+): Promise<HistoryRow[]> {
   const clauses = ['battery_id = ?'];
   const params: Param[] = [query.batteryId];
 
@@ -151,7 +151,7 @@ export function queryHistory(
   });
 
   const limit = Math.min(Math.max(query.limit ?? 500, 1), 5000);
-  return store.all<HistoryRow>(`${q.sql} LIMIT ?`, ...q.params, limit);
+  return await store.all<HistoryRow>(`${q.sql} LIMIT ?`, ...q.params, limit);
 }
 
 export interface LastReading {
@@ -170,27 +170,28 @@ export interface LastReading {
  * next to it reads as current. A pack last seen three weeks ago showing "41%"
  * is worse than a pack showing nothing at all: a technician can act on it.
  */
-export function lastReadings(
+export async function lastReadings(
   store: Store,
   principal: Principal,
   batteryIds: string[]
-): Map<string, LastReading> {
+): Promise<Map<string, LastReading>> {
   if (batteryIds.length === 0) return new Map();
 
   const placeholders = batteryIds.map(() => '?').join(',');
   const q = tenantQuery(principal, 'telemetry_readings', {
     columns: 'battery_id, soc, pack_voltage, fault_count, recorded_at',
+    // `latest`, not `inner`: the latter is a reserved word on Postgres.
     where: `battery_id IN (${placeholders}) AND recorded_at = (
-      SELECT MAX(inner.recorded_at) FROM telemetry_readings AS inner
-      WHERE inner.battery_id = telemetry_readings.battery_id
+      SELECT MAX(latest.recorded_at) FROM telemetry_readings AS latest
+      WHERE latest.battery_id = telemetry_readings.battery_id
     )`,
     params: batteryIds,
   });
 
-  return new Map(store.all<LastReading>(q.sql, ...q.params).map((r) => [r.battery_id, r]));
+  return new Map((await store.all<LastReading>(q.sql, ...q.params)).map((r) => [r.battery_id, r]));
 }
 
 /** Housekeeping. Unlike the audit ledger, telemetry is expected to age out. */
-export function pruneTelemetry(store: Store, now = Date.now()): void {
-  store.run('DELETE FROM telemetry_readings WHERE recorded_at < ?', now - RETENTION_MS);
+export async function pruneTelemetry(store: Store, now = Date.now()): Promise<void> {
+  await store.run('DELETE FROM telemetry_readings WHERE recorded_at < ?', now - RETENTION_MS);
 }

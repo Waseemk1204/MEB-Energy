@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { FastifyInstance } from 'fastify';
-import { createStore, type Store } from '../db/client.js';
+import type { Store } from '../db/client.js';
 import { secretFrom } from '../auth/tokens.js';
 import { seedParameterDefinitions } from '../policy/seed.js';
 import type { Dispatcher } from '../policy/writeService.js';
 import { buildServer } from '../server.js';
+import { createTestStore } from '../db/testFixtures.js';
 
 const SECRET = secretFrom('a-headers-test-signing-secret-length!');
 const dispatcher: Dispatcher = { send: async ({ value }) => ({ result: 'success', readBack: value }) };
@@ -13,9 +14,9 @@ const dispatcher: Dispatcher = { send: async ({ value }) => ({ result: 'success'
 let store: Store;
 let app: FastifyInstance;
 
-beforeEach(() => {
-  store = createStore();
-  seedParameterDefinitions(store);
+beforeEach(async () => {
+  store = await createTestStore();
+  await seedParameterDefinitions(store);
   app = buildServer({ store, secret: SECRET, dispatcher });
 });
 
@@ -84,9 +85,9 @@ describe('liveness', () => {
         assert.equal(res.statusCode, 200);
         assert.deepEqual(res.json(), { ok: true });
       })
-      .finally(() => {
+      .finally(async () => {
         // Re-open so the afterEach close does not throw.
-        store = createStore();
+        store = await createTestStore();
       });
   });
 
@@ -109,18 +110,24 @@ describe('readiness', () => {
     assert.equal(res.statusCode, 200);
   });
 
-  /** The failure this check exists for. */
+  /**
+   * The failure this check exists for. Closing the store is how SQLite loses
+   * its database; the shared PGlite engine cannot be closed per test, so
+   * there the readiness query is made to fail by making the table it reads
+   * disappear.
+   */
   it('reports not ready when the database is gone', async () => {
-    store.close();
+    if (store.dialect === 'postgres') await store.exec('DROP TABLE parameter_definitions CASCADE');
+    else await store.close();
     const res = await app.inject({ method: 'GET', url: '/ready' });
 
     assert.equal(res.statusCode, 503);
     assert.equal(res.json().ready, false);
-    store = createStore();
+    store = await createTestStore();
   });
 
   it('reports not ready when the schema is there but the seed is not', async () => {
-    const empty = createStore();
+    const empty = await createTestStore();
     const bare = buildServer({ store: empty, secret: SECRET, dispatcher });
 
     const res = await bare.inject({ method: 'GET', url: '/ready' });
@@ -133,6 +140,6 @@ describe('readiness', () => {
     store.close();
     const res = await app.inject({ method: 'GET', url: '/ready' });
     assert.ok(!JSON.stringify(res.json()).match(/SQLITE|sqlite|\.db|stack/));
-    store = createStore();
+    store = await createTestStore();
   });
 });

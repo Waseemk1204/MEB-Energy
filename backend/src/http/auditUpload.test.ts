@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { FastifyInstance } from 'fastify';
-import { createStore, type Store } from '../db/client.js';
+import type { Store } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
 import { secretFrom } from '../auth/tokens.js';
 import { JBD_SP24S004, seedParameterDefinitions } from '../policy/seed.js';
 import type { Dispatcher } from '../policy/writeService.js';
 import { createLimiter } from './rateLimit.js';
 import { buildServer, clientAuditEvent } from '../server.js';
-import { seedCompany } from '../db/testFixtures.js';
+import { createTestStore, seedCompany } from '../db/testFixtures.js';
 
 /**
  * Uploading writes a technician performed on site, over BLE, offline.
@@ -29,19 +29,19 @@ let app: FastifyInstance;
 const dispatcher: Dispatcher = { send: async ({ value }) => ({ result: 'success', readBack: value }) };
 
 beforeEach(async () => {
-  store = createStore();
-  seedParameterDefinitions(store);
+  store = await createTestStore();
+  await seedParameterDefinitions(store);
   const now = Date.now();
   const hash = await hashPassword(PASSWORD, CHEAP);
 
   for (const [id, name] of [[ACME, 'Acme EV'], [RIVAL, 'Rival Ltd']] as const) {
-    seedCompany(store, id, name, now);
+    await seedCompany(store, id, name, now);
   }
   for (const [id, company, serial] of [
     [BATTERY, ACME, 'BAT-ACME-1'],
     [RIVAL_BATTERY, RIVAL, 'BAT-RIVAL-1'],
   ] as const) {
-    store.run(
+    await store.run(
       `INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, bms_model, created_at)
        VALUES (?,?,?,?,?,?,?)`,
       id, company, serial, 'LiFePO4', 24, JBD_SP24S004, now
@@ -52,7 +52,7 @@ beforeEach(async () => {
     ['u-tech-2', ACME, 'tech2@acme.example', 'user'],
     ['u-rival', RIVAL, 'tech@rival.example', 'user'],
   ] as const) {
-    store.run(
+    await store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
       id, company, email, role, role, hash, 'active', now
     );
@@ -87,8 +87,8 @@ const upload = (token: string, events: unknown[], battery = BATTERY) =>
     payload: { events },
   });
 
-const rows = () =>
-  store.all<{ id: string; source: string; actor_user_id: string; company_id: string; occurred_at: number; recorded_at: number; client_event_id: string | null }>(
+const rows = async () =>
+  await store.all<{ id: string; source: string; actor_user_id: string; company_id: string; occurred_at: number; recorded_at: number; client_event_id: string | null }>(
     'SELECT * FROM audit_events ORDER BY seq'
   );
 
@@ -97,8 +97,8 @@ describe('uploading on-site writes', () => {
     const res = await upload(await tokenFor('tech@acme.example'), [event()]);
     assert.equal(res.statusCode, 200);
     assert.equal(res.json().stored, 1);
-    assert.equal(rows().length, 1);
-    assert.equal(rows()[0]!.source, 'local');
+    assert.equal((await rows()).length, 1);
+    assert.equal((await rows())[0]!.source, 'local');
   });
 
   it('accepts a batch', async () => {
@@ -117,7 +117,7 @@ describe('uploading on-site writes', () => {
       event({ clientEventId: 'evt-2000000c', result: 'indeterminate' }),
     ]);
     assert.deepEqual(
-      store.all<{ result: string }>('SELECT result FROM audit_events ORDER BY seq').map((r) => r.result),
+      (await store.all<{ result: string }>('SELECT result FROM audit_events ORDER BY seq')).map((r) => r.result),
       ['rejected', 'timeout', 'indeterminate']
     );
   });
@@ -129,7 +129,7 @@ describe('uploading on-site writes', () => {
   it('keeps when it happened apart from when it arrived', async () => {
     const happened = Date.now() - 3 * 60 * 60 * 1000;
     await upload(await tokenFor('tech@acme.example'), [event({ occurredAt: happened })]);
-    const row = rows()[0]!;
+    const row = (await rows())[0]!;
     assert.equal(row.occurred_at, happened);
     assert.ok(row.recorded_at > happened + 60_000);
   });
@@ -139,7 +139,7 @@ describe('uploading on-site writes', () => {
     const token = await tokenFor('tech@acme.example');
     await upload(token, [event({ clientEventId: 'evt-late00001', occurredAt: 1_000_000 })]);
     await upload(token, [event({ clientEventId: 'evt-early0001', occurredAt: 2_000_000 })]);
-    assert.deepEqual(rows().map((r) => r.client_event_id), ['evt-late00001', 'evt-early0001']);
+    assert.deepEqual((await rows()).map((r) => r.client_event_id), ['evt-late00001', 'evt-early0001']);
   });
 });
 
@@ -153,7 +153,7 @@ describe('retrying an upload', () => {
     const first = await upload(token, [event()]);
     const second = await upload(token, [event()]);
 
-    assert.equal(rows().length, 1);
+    assert.equal((await rows()).length, 1);
     assert.equal(second.json().stored, 0);
     assert.equal(second.json().duplicates, 1);
     assert.equal(second.json().accepted[0].auditId, first.json().accepted[0].auditId);
@@ -169,7 +169,7 @@ describe('retrying an upload', () => {
     ]);
     assert.equal(res.json().stored, 1);
     assert.equal(res.json().duplicates, 1);
-    assert.equal(rows().length, 2);
+    assert.equal((await rows()).length, 2);
   });
 
   it('reports each event’s stored id so the app can retire it with certainty', async () => {
@@ -191,7 +191,7 @@ describe('retrying an upload', () => {
       RIVAL_BATTERY
     );
     assert.equal(res.json().stored, 1);
-    assert.equal(rows().length, 2);
+    assert.equal((await rows()).length, 2);
   });
 });
 
@@ -234,8 +234,8 @@ describe('what the payload is not allowed to decide', () => {
     await upload(await tokenFor('tech@acme.example'), [
       event({ actorUserId: 'u-tech-2', companyId: RIVAL }),
     ]);
-    assert.equal(rows()[0]!.actor_user_id, 'u-tech');
-    assert.equal(rows()[0]!.company_id, ACME);
+    assert.equal((await rows())[0]!.actor_user_id, 'u-tech');
+    assert.equal((await rows())[0]!.company_id, ACME);
   });
 
   /** An app must not be able to file a change as an administrator's push. */
@@ -243,13 +243,13 @@ describe('what the payload is not allowed to decide', () => {
     await upload(await tokenFor('tech@acme.example'), [
       event({ source: 'admin_force_push' }),
     ]);
-    assert.equal(rows()[0]!.source, 'local');
+    assert.equal((await rows())[0]!.source, 'local');
   });
 
   it('refuses an upload against another tenant’s battery', async () => {
     const res = await upload(await tokenFor('tech@acme.example'), [event()], RIVAL_BATTERY);
     assert.equal(res.statusCode, 404);
-    assert.equal(rows().length, 0);
+    assert.equal((await rows()).length, 0);
   });
 
   it('refuses an anonymous upload', async () => {

@@ -2,8 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { createStore } from '../db/client.js';
 import { JBD_SP24S004, capabilityProfile, seedParameterDefinitions } from './seed.js';
+import { createTestStore } from '../db/testFixtures.js';
 
 /**
  * The mobile app ships its own copy of this profile so Settings renders with no
@@ -39,20 +39,20 @@ interface AppParameter {
 const appParameters = (): AppParameter[] =>
   (JSON.parse(readFileSync(APP_PROFILE, 'utf8')) as { parameters: AppParameter[] }).parameters;
 
-const serverParameters = () => {
-  const store = createStore();
+const serverParameters = async () => {
+  const store = await createTestStore();
   try {
-    seedParameterDefinitions(store);
-    return capabilityProfile(store, JBD_SP24S004);
+    await seedParameterDefinitions(store);
+    return await capabilityProfile(store, JBD_SP24S004);
   } finally {
     store.close();
   }
 };
 
 describe('the app profile and the backend seed describe the same BMS', { skip: !existsSync(APP_PROFILE) }, () => {
-  it('defines exactly the same parameter keys', () => {
+  it('defines exactly the same parameter keys', async () => {
     const app = new Set(appParameters().map((p) => p.parameter_key));
-    const server = new Set(serverParameters().map((d) => d.parameterKey));
+    const server = new Set((await serverParameters()).map((d) => d.parameterKey));
     assert.deepEqual(
       [...app].filter((k) => !server.has(k)),
       [],
@@ -65,8 +65,8 @@ describe('the app profile and the backend seed describe the same BMS', { skip: !
     );
   });
 
-  it('agrees on every field that decides what a technician may do', () => {
-    const server = new Map(serverParameters().map((d) => [d.parameterKey, d]));
+  it('agrees on every field that decides what a technician may do', async () => {
+    const server = new Map((await serverParameters()).map((d) => [d.parameterKey, d]));
     const disagreements: string[] = [];
 
     for (const p of appParameters()) {

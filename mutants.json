@@ -36,7 +36,7 @@
     "why": "A broken instance staying in the rotation is the failure readiness exists to prevent.",
     "package": "backend",
     "file": "src/server.ts",
-    "from": "      const row = store.get<{ n: number }>('SELECT COUNT(*) AS n FROM parameter_definitions');",
+    "from": "      const row = await store.get<{ n: number }>('SELECT COUNT(*) AS n FROM parameter_definitions');",
     "to": "      const row = { n: 1 };"
   },
   {
@@ -60,8 +60,8 @@
     "why": "Unbounded, one large tenant is a problem for everyone on the instance.",
     "package": "backend",
     "file": "src/server.ts",
-    "from": "    const rows = store.all<{ id: string }>(`${q.sql} LIMIT ?`, ...q.params, limit + 1);",
-    "to": "    const rows = store.all<{ id: string }>(q.sql, ...q.params);"
+    "from": "    const rows = await store.all<{ id: string }>(`${q.sql} LIMIT ?`, ...q.params, limit + 1);",
+    "to": "    const rows = await store.all<{ id: string }>(q.sql, ...q.params);"
   },
   {
     "name": "a command reaches a battery with nobody on site",
@@ -196,7 +196,7 @@
     "why": "Reuse means the token was stolen or replayed; revoking the chain is the response.",
     "package": "backend",
     "file": "src/auth/tokens.ts",
-    "from": "    revokeAllForUser(store, row.user_id, now);",
+    "from": "    await revokeAllForUser(store, row.user_id, now);",
     "to": ""
   },
   {
@@ -268,8 +268,8 @@
     "why": "After fifteen minutes every device becomes 'an unrecognised device'.",
     "package": "backend",
     "file": "src/auth/tokens.ts",
-    "from": "    const next = issueRefreshToken(store, row.user_id, now, row.device_label ?? null);",
-    "to": "    const next = issueRefreshToken(store, row.user_id, now, null);"
+    "from": "    const next = await issueRefreshToken(store, row.user_id, now, row.device_label ?? null);",
+    "to": "    const next = await issueRefreshToken(store, row.user_id, now, null);"
   },
   {
     "name": "app reports a blocked company as a network problem",
@@ -292,7 +292,7 @@
     "why": "A guard and its call site are two changes; the rule passing does not mean the route calls it.",
     "package": "backend",
     "file": "src/server.ts",
-    "from": "      requirePermission(store, principal, 'write');",
+    "from": "      await requirePermission(store, principal, 'write');",
     "to": "      // removed"
   },
   {
@@ -300,7 +300,7 @@
     "why": "Same, for read.",
     "package": "backend",
     "file": "src/server.ts",
-    "from": "    requirePermission(store, principal, 'read');",
+    "from": "    await requirePermission(store, principal, 'read');",
     "to": "    // removed"
   },
   {
@@ -452,7 +452,7 @@
     "why": "A suspended account keeps working until its token expires.",
     "package": "backend",
     "file": "src/company/service.ts",
-    "from": "  if (status === 'suspended') revokeAllForUser(store, userId, now);",
+    "from": "  if (status === 'suspended') await revokeAllForUser(store, userId, now);",
     "to": ""
   },
   {
@@ -524,8 +524,8 @@
     "why": "The audit ledger references packs by id.",
     "package": "backend",
     "file": "src/company/service.ts",
-    "from": "    store.run(\"UPDATE batteries SET status = 'retired' WHERE id = ?\", batteryId);",
-    "to": "    store.run(\"DELETE FROM batteries WHERE id = ?\", batteryId);"
+    "from": "    await store.run(\"UPDATE batteries SET status = 'retired' WHERE id = ?\", batteryId);",
+    "to": "    await store.run(\"DELETE FROM batteries WHERE id = ?\", batteryId);"
   },
   {
     "name": "every role lands on the battery list",
@@ -630,5 +630,29 @@
     "file": "app/batteries.tsx",
     "from": "      onPress: () => signOut(),",
     "to": "      onPress: () => undefined,"
+  },
+  {
+    "name": "a pooled transaction runs its writes outside the connection",
+    "why": "BEGIN on one pooled connection and the writes on another is no transaction at all.",
+    "package": "backend",
+    "file": "src/db/client.ts",
+    "from": "        const result = await bound.run(client, fn);",
+    "to": "        const result = await fn();"
+  },
+  {
+    "name": "the placeholder rewrite skips a parameter",
+    "why": "Every parameter after the skipped one shifts by one; the wrong value lands in the wrong column.",
+    "package": "backend",
+    "file": "src/db/client.ts",
+    "from": "      n += 1;\n      out += `$${n}`;",
+    "to": "      n += 1;\n      out += `$${Math.max(1, n - 1)}`;"
+  },
+  {
+    "name": "an unawaited ownership check lets an edit through",
+    "why": "A promise is truthy; the ID-guessing guard would never throw.",
+    "package": "backend",
+    "file": "src/company/service.ts",
+    "from": "  await ownedBattery(store, principal, batteryId);\n\n  if (patch.serial !== undefined) {",
+    "to": "  void ownedBattery(store, principal, batteryId);\n\n  if (patch.serial !== undefined) {"
   }
 ]

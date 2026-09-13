@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { FastifyInstance } from 'fastify';
-import { createStore, type Store } from '../db/client.js';
-import { seedCompany } from '../db/testFixtures.js';
+import type { Store } from '../db/client.js';
+import { createTestStore, seedCompany } from '../db/testFixtures.js';
 import { hashPassword } from '../auth/password.js';
 import { secretFrom } from '../auth/tokens.js';
 import { seedParameterDefinitions } from '../policy/seed.js';
@@ -27,28 +27,28 @@ let app: FastifyInstance;
 const dispatcher: Dispatcher = { send: async ({ value }) => ({ result: 'success', readBack: value }) };
 
 beforeEach(async () => {
-  store = createStore();
-  seedParameterDefinitions(store);
+  store = await createTestStore();
+  await seedParameterDefinitions(store);
   const now = Date.now();
   const hash = await hashPassword(PASSWORD, CHEAP);
 
-  seedCompany(store, ACME, 'Acme EV', now);
-  seedCompany(store, RIVAL, 'Rival', now);
+  await seedCompany(store, ACME, 'Acme EV', now);
+  await seedCompany(store, RIVAL, 'Rival', now);
   for (const [id, company, email, role] of [
     ['u-owner', ACME, 'owner@acme.example', 'company'],
     ['u-tech', ACME, 'tech@acme.example', 'user'],
     ['u-rival', RIVAL, 'owner@rival.example', 'company'],
   ] as const) {
-    store.run(
+    await store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
       id, company, email, role, role, hash, 'active', now
     );
   }
-  store.run(
+  await store.run(
     'INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, created_at) VALUES (?,?,?,?,?,?)',
     'b-acme', ACME, 'BAT-0001', 'LiFePO4', 24, now
   );
-  store.run(
+  await store.run(
     'INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, created_at) VALUES (?,?,?,?,?,?)',
     'b-rival', RIVAL, 'BAT-9001', 'LiFePO4', 16, now
   );
@@ -74,13 +74,13 @@ const list = async (email: string, includeRetired = false) =>
     headers: auth(await tokenFor(email)),
   })).json().batteries as { id: string; serial: string }[];
 
-const serialOf = (id: string) =>
-  store.get<{ serial: string; status: string }>('SELECT serial, status FROM batteries WHERE id = ?', id);
+const serialOf = async (id: string) =>
+  await store.get<{ serial: string; status: string }>('SELECT serial, status FROM batteries WHERE id = ?', id);
 
 describe('editing a pack', () => {
   it('lets the company owner change its details', async () => {
     assert.equal((await patch('owner@acme.example', 'b-acme', { serial: 'BAT-0001-R', cellCount: 24 })).statusCode, 204);
-    assert.equal(serialOf('b-acme')?.serial, 'BAT-0001-R');
+    assert.equal((await serialOf('b-acme'))?.serial, 'BAT-0001-R');
   });
 
   it('lets the other company’s administrator change its own pack', async () => {
@@ -90,7 +90,7 @@ describe('editing a pack', () => {
   /** Same answer as a pack that does not exist, so serials cannot be probed. */
   it('hides another tenant’s pack behind a 404', async () => {
     assert.equal((await patch('owner@acme.example', 'b-rival', { serial: 'X' })).statusCode, 404);
-    assert.equal(serialOf('b-rival')?.serial, 'BAT-9001');
+    assert.equal((await serialOf('b-rival'))?.serial, 'BAT-9001');
   });
 
   it('refuses a technician', async () => {
@@ -99,7 +99,7 @@ describe('editing a pack', () => {
   });
 
   it('refuses a serial another pack already has', async () => {
-    store.run(
+    await store.run(
       'INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, created_at) VALUES (?,?,?,?,?,?)',
       'b-acme-2', ACME, 'BAT-0002', 'LiFePO4', 24, Date.now()
     );
@@ -120,7 +120,7 @@ describe('retiring a pack', () => {
   /** Retired, not deleted: the row and everything referencing it survive. */
   it('keeps the row', async () => {
     await retire('owner@acme.example', 'b-acme');
-    assert.equal(serialOf('b-acme')?.status, 'retired');
+    assert.equal((await serialOf('b-acme'))?.status, 'retired');
   });
 
   it('still shows it to a management screen that asks', async () => {
@@ -133,7 +133,7 @@ describe('retiring a pack', () => {
     await app.inject({ method: 'POST', url: '/batteries/b-acme/session', headers: auth(tech) });
     await retire('owner@acme.example', 'b-acme');
 
-    const open = store.get<{ n: number }>(
+    const open = await store.get<{ n: number }>(
       'SELECT COUNT(*) AS n FROM ble_sessions WHERE battery_id = ? AND ended_at IS NULL',
       'b-acme'
     );
@@ -142,7 +142,7 @@ describe('retiring a pack', () => {
 
   it('hides another tenant’s pack behind a 404', async () => {
     assert.equal((await retire('owner@acme.example', 'b-rival')).statusCode, 404);
-    assert.equal(serialOf('b-rival')?.status, 'active');
+    assert.equal((await serialOf('b-rival'))?.status, 'active');
   });
 
   it('can be reinstated', async () => {
@@ -153,6 +153,6 @@ describe('retiring a pack', () => {
       headers: auth(await tokenFor('owner@acme.example')),
     });
     assert.equal(res.statusCode, 204);
-    assert.equal(serialOf('b-acme')?.status, 'active');
+    assert.equal((await serialOf('b-acme'))?.status, 'active');
   });
 });

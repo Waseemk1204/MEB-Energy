@@ -8,7 +8,7 @@ import { JBD_SP24S004, seedParameterDefinitions } from '../policy/seed.js';
 import type { Dispatcher } from '../policy/writeService.js';
 import { createLimiter } from './rateLimit.js';
 import { BATTERY_PAGE_MAX, buildServer } from '../server.js';
-import { seedCompany } from '../db/testFixtures.js';
+import { createTestStore, seedCompany } from '../db/testFixtures.js';
 
 /**
  * The HTTP surface, driven the way a client — or an attacker — actually reaches
@@ -41,8 +41,8 @@ const seedUsers = async () => {
    * the technicians here could not write, and each of these tests would fail
    * for a reason it is not about.
    */
-  const insert = (id: string, company: string, email: string, role: string, status = 'active') =>
-    store.run(
+  const insert = async (id: string, company: string, email: string, role: string, status = 'active') =>
+    await store.run(
       `INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at,
                           can_read, can_write, can_location, can_health)
        VALUES (?,?,?,?,?,?,?,?,1,1,1,1)`,
@@ -55,29 +55,29 @@ const seedUsers = async () => {
       status,
       now
     );
-  insert('u-acme', ACME, 'field@acme.example', 'user');
-  insert('u-rival', RIVAL, 'field@rival.example', 'user');
+  await insert('u-acme', ACME, 'field@acme.example', 'user');
+  await insert('u-rival', RIVAL, 'field@rival.example', 'user');
   // The company's administrator, inside the company like everyone.
-  insert('u-admin', ACME, 'admin@acme.example', 'company');
-  insert('u-suspended', ACME, 'gone@acme.example', 'user', 'suspended');
+  await insert('u-admin', ACME, 'admin@acme.example', 'company');
+  await insert('u-suspended', ACME, 'gone@acme.example', 'user', 'suspended');
 };
 
 beforeEach(async () => {
-  store = createStore();
-  seedParameterDefinitions(store);
+  store = await createTestStore();
+  await seedParameterDefinitions(store);
   const now = Date.now();
 
   for (const [id, name] of [
     [ACME, 'Acme EV'],
     [RIVAL, 'Rival Fleet'],
   ] as const) {
-    seedCompany(store, id, name, now);
+    await seedCompany(store, id, name, now);
   }
   for (const [id, company, serial] of [
     [ACME_BATTERY, ACME, 'BAT-ACME-1'],
     [RIVAL_BATTERY, RIVAL, 'BAT-RIVAL-1'],
   ] as const) {
-    store.run(
+    await store.run(
       `INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, bms_model, bms_firmware, created_at)
        VALUES (?,?,?,?,?,?,?,?)`,
       id, company, serial, 'LiFePO4', 24, JBD_SP24S004, 'FW 1.2.4', now
@@ -200,7 +200,7 @@ describe('tokens over HTTP', () => {
   /** A token outlives a suspension, so status is re-checked per request. */
   it('stops honouring a token once the account is suspended', async () => {
     const { accessToken } = await login('field@acme.example');
-    store.run("UPDATE users SET status = 'suspended' WHERE id = ?", 'u-acme');
+    await store.run("UPDATE users SET status = 'suspended' WHERE id = ?", 'u-acme');
     const res = await app.inject({ method: 'GET', url: '/me', headers: auth(accessToken) });
     assert.equal(res.statusCode, 401);
   });
@@ -313,7 +313,7 @@ describe('capability profile', () => {
 });
 
 describe('writing a parameter', () => {
-  const write = async (token: string, battery: string, key: string, body: object) =>
+  const write = (token: string, battery: string, key: string, body: object) =>
     app.inject({
       method: 'POST',
       url: `/batteries/${battery}/parameters/${key}`,
@@ -540,7 +540,7 @@ describe('the fleet list carries each pack’s last known reading', () => {
     ...over,
   });
 
-  const upload = async (token: string, batteryId: string, samples: unknown[]) =>
+  const upload = (token: string, batteryId: string, samples: unknown[]) =>
     app.inject({
       method: 'POST',
       url: `/batteries/${batteryId}/telemetry`,
@@ -632,10 +632,10 @@ describe('the fleet listing is bounded', () => {
       })
     ).json() as { batteries: { serial: string }[]; truncated: boolean };
 
-  const addBatteries = (count: number) => {
+  const addBatteries = async (count: number) => {
     const now = Date.now();
     for (let i = 0; i < count; i += 1) {
-      store.run(
+      await store.run(
         `INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, bms_model, created_at)
          VALUES (?,?,?,?,?,?,?)`,
         `bulk-${i}`, ACME, `BULK-${String(i).padStart(4, '0')}`, 'LiFePO4', 24, 'JBD SP24S004', now
@@ -649,14 +649,14 @@ describe('the fleet listing is bounded', () => {
   });
 
   it('honours an explicit limit', async () => {
-    addBatteries(10);
+    await addBatteries(10);
     const body = await fleet(await tokenOf2('field@acme.example'), '?limit=5');
     assert.equal(body.batteries.length, 5);
   });
 
   /** The point of the bound: a client must know it is looking at part of it. */
   it('says so when there is more', async () => {
-    addBatteries(10);
+    await addBatteries(10);
     const body = await fleet(await tokenOf2('field@acme.example'), '?limit=5');
     assert.equal(body.truncated, true);
   });
@@ -669,14 +669,14 @@ describe('the fleet listing is bounded', () => {
   });
 
   it('refuses a limit above the maximum rather than honouring it', async () => {
-    addBatteries(5);
+    await addBatteries(5);
     const body = await fleet(await tokenOf2('field@acme.example'), '?limit=999999');
     // Clamped, not obeyed — the response is still bounded.
     assert.ok(body.batteries.length <= BATTERY_PAGE_MAX);
   });
 
   it('ignores a nonsensical limit rather than returning nothing', async () => {
-    addBatteries(5);
+    await addBatteries(5);
     const body = await fleet(await tokenOf2('field@acme.example'), '?limit=0');
     assert.ok(body.batteries.length >= 1);
   });
@@ -758,23 +758,23 @@ describe('reading a single battery', () => {
  */
 describe('the fleet query itself is bounded', () => {
   it('sends a LIMIT to the database', async () => {
-    const spied = createStore();
-    seedParameterDefinitions(spied);
+    const spied = await createTestStore();
+    await seedParameterDefinitions(spied);
 
     const queries: string[] = [];
     const recording: Store = {
       ...spied,
-      all: <T,>(sql: string, ...params: Param[]) => {
+      all: async <T,>(sql: string, ...params: Param[]) => {
         queries.push(sql);
-        return spied.all<T>(sql, ...params);
+        return await spied.all<T>(sql, ...params);
       },
     };
 
     const server = buildServer({ store: recording, secret: SECRET, dispatcher });
 
     const now = Date.now();
-    seedCompany(spied, 'c9', 'C', now);
-    spied.run(
+    await seedCompany(spied, 'c9', 'C', now);
+    await spied.run(
       `INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at,
                           can_read, can_write, can_location, can_health)
        VALUES (?,?,?,?,?,?,?,?,1,1,1,1)`,

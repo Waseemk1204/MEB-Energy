@@ -79,8 +79,8 @@ const login = () =>
   });
 
 describe('a platform administrator left in an old database', () => {
-  it('is suspended on startup', () => {
-    const row = store.get<{ status: string }>('SELECT status FROM users WHERE id = ?', 'u-platform');
+  it('is suspended on startup', async () => {
+    const row = await store.get<{ status: string }>('SELECT status FROM users WHERE id = ?', 'u-platform');
     assert.equal(row?.status, 'suspended');
   });
 
@@ -90,7 +90,7 @@ describe('a platform administrator left in an old database', () => {
 
   /** Reactivated by hand, the role itself is still one the application refuses. */
   it('cannot sign in even when reactivated', async () => {
-    store.run("UPDATE users SET status = 'active' WHERE id = ?", 'u-platform');
+    await store.run("UPDATE users SET status = 'active' WHERE id = ?", 'u-platform');
     const res = await login();
     assert.equal(res.statusCode, 401);
     // The same message as a wrong password: nothing to enumerate.

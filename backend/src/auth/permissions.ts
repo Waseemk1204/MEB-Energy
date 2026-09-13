@@ -60,10 +60,10 @@ interface PermissionRow {
  * A suspended account has none, whatever its columns say. Suspension already
  * revokes sessions, but a token issued moments before must not outlive it.
  */
-export function permissionsOf(store: Store, principal: Principal): Permissions {
+export async function permissionsOf(store: Store, principal: Principal): Promise<Permissions> {
   if (principal.role === 'company') return ADMINISTRATOR_PERMISSIONS;
 
-  const row = store.get<PermissionRow>(
+  const row = await store.get<PermissionRow>(
     'SELECT can_read, can_write, can_location, can_health, status FROM users WHERE id = ?',
     principal.userId
   );
@@ -95,12 +95,12 @@ const REFUSAL: Record<PermissionName, string> = {
  * The message names the permission and who can grant it, because "forbidden"
  * on its own sends somebody to the wrong person.
  */
-export function requirePermission(
+export async function requirePermission(
   store: Store,
   principal: Principal,
   name: PermissionName
-): void {
-  if (!permissionsOf(store, principal)[name]) throw forbidden(REFUSAL[name]);
+): Promise<void> {
+  if (!(await permissionsOf(store, principal))[name]) throw forbidden(REFUSAL[name]);
 }
 
 /** The columns, for writing. Undefined fields are left as they are. */
@@ -118,7 +118,7 @@ const COLUMN: Record<PermissionName, string> = {
   health: 'can_health',
 };
 
-export function setPermissions(store: Store, userId: string, patch: PermissionPatch): void {
+export async function setPermissions(store: Store, userId: string, patch: PermissionPatch): Promise<void> {
   const sets: string[] = [];
   const params: number[] = [];
 
@@ -130,5 +130,5 @@ export function setPermissions(store: Store, userId: string, patch: PermissionPa
   }
   if (sets.length === 0) return;
 
-  store.run(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, ...params, userId);
+  await store.run(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, ...params, userId);
 }

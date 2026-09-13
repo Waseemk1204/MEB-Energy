@@ -93,9 +93,40 @@ administrator can change from Company settings. The icons are generated
 (olive tile, battery glyph, wordmark) and replace the Expo template placeholder
 that shipped before.
 
+### Postgres, for Vercel (September 2026)
+
+The store became async and grew a second dialect. `Store` is the same five
+verbs; `createStore` is SQLite as before, `createPostgresStore` takes any
+`pg`-shaped client or pool and rewrites `?` to `$n`. A pooled transaction
+leases one connection and binds it to the async context for the duration,
+so `store.run` inside the function reaches it without being handed a handle
+-- the alternative, BEGIN on one pooled connection and the writes on another,
+is no transaction at all and is invisible until production. The schema is one
+text with the two things that differ substituted: the ledger's `seq` is an
+identity column on Postgres and computed on SQLite, and the append-only
+triggers are written in each dialect's own syntax.
+
+The conversion was mechanical and the mechanical part is not the risk. The
+risk is the call that stops being awaited: a promise is truthy, so
+`referencedBy(a) || referencedBy(b)` calls everyone "history",
+`if (!heartbeat(...))` never fires, and an un-awaited `ownedBattery` never
+throws -- that last one made `PATCH /batteries/:id` accept another company's
+pack, and the test for it was the only reason it was found. Every such site
+was swept by hand and three now have mutants.
+
+The suite runs on both dialects. `TEST_DB=postgres` puts it on PGlite, a
+real Postgres engine in-process, which found `inner` used as a table alias
+(reserved on Postgres, fine on SQLite) and the multi-statement migration that
+a prepared statement refuses. `scripts/pgliteServer.mjs` puts PGlite behind
+the wire protocol so the API itself, through the real `pg` driver, can be
+run and live-checked with nothing installed. `api/index.ts` is the Vercel
+function: one warm Fastify instance per function instance, requests handed
+to it, the migration and bootstrap paid once on the cold start.
+
 ### Numbers
 
-Backend 542 tests (was 645: the entitlement, session-cap and overview suites
+Backend 554 tests on each of two dialects (was 545 on one), app 762, mutants
+82. Before that: backend 542 tests (was 645: the entitlement, session-cap and overview suites
 went with their code), app 751 (was 754), console 0 (was 350). Mutants 78
 (was 88): the 12 console rules and 24 rules about things that no longer exist
 were replaced by 26 about things that now do — the retired role being refused

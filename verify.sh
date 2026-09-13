@@ -59,7 +59,10 @@ run() {
 
 step "backend"
 run backend "typecheck" npm run typecheck
-run backend "tests" npm test
+run backend "tests (sqlite)" npm test
+# The same suite on a real Postgres engine in-process. Production is Postgres;
+# a query that is right on SQLite and wrong there must fail here, not there.
+run backend "tests (postgres)" npm run test:postgres
 
 step "app"
 run mobile "typecheck" npx tsc --noEmit

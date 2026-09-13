@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { FastifyInstance } from 'fastify';
-import { createStore, type Store } from '../db/client.js';
+import type { Store } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
 import { secretFrom } from '../auth/tokens.js';
 import type { Dispatcher } from '../policy/writeService.js';
 import { createLimiter } from './rateLimit.js';
 import { buildServer } from '../server.js';
-import { seedCompany } from '../db/testFixtures.js';
+import { createTestStore, seedCompany } from '../db/testFixtures.js';
 
 /**
  * Company administration over HTTP. The service tests prove the rules; these
@@ -28,7 +28,7 @@ let app: FastifyInstance;
 const dispatcher: Dispatcher = { send: async ({ value }) => ({ result: 'success', readBack: value }) };
 
 beforeEach(async () => {
-  store = createStore();
+  store = await createTestStore();
   const now = Date.now();
   const hash = await hashPassword(PASSWORD, CHEAP);
 
@@ -36,18 +36,18 @@ beforeEach(async () => {
     [ACME, 'Acme EV'],
     [RIVAL, 'Rival Fleet'],
   ] as const) {
-    seedCompany(store, id, name, now);
+    await seedCompany(store, id, name, now);
   }
 
-  const insert = (id: string, company: string, email: string, role: string) =>
-    store.run(
+  const insert = async (id: string, company: string, email: string, role: string) =>
+    await store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
       id, company, email, role, role, hash, 'active', now
     );
-  insert('u-admin', ACME, 'admin@acme.example', 'company');
-  insert('u-admin-2', ACME, 'admin2@acme.example', 'company');
-  insert('u-acme-field', ACME, 'field@acme.example', 'user');
-  insert('u-rival-owner', RIVAL, 'owner@rival.example', 'company');
+  await insert('u-admin', ACME, 'admin@acme.example', 'company');
+  await insert('u-admin-2', ACME, 'admin2@acme.example', 'company');
+  await insert('u-acme-field', ACME, 'field@acme.example', 'user');
+  await insert('u-rival-owner', RIVAL, 'owner@rival.example', 'company');
 
   app = buildServer({ store, secret: SECRET, dispatcher, loginLimiter: createLimiter(50, 60_000) });
 });

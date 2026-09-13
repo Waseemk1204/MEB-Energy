@@ -41,7 +41,7 @@ export async function bootstrapCompany(
   env: { companyName?: string; email?: string; password?: string },
   now = Date.now()
 ): Promise<BootstrapOutcome> {
-  const existing = store.get<{ n: number }>('SELECT COUNT(*) AS n FROM users');
+  const existing = await store.get<{ n: number }>('SELECT COUNT(*) AS n FROM users');
   if ((existing?.n ?? 0) > 0) return { kind: 'skipped', reason: 'users_exist' };
 
   const email = env.email?.trim().toLowerCase();
@@ -60,15 +60,15 @@ export async function bootstrapCompany(
   const companyName = env.companyName?.trim() || DEFAULT_COMPANY_NAME;
   const passwordHash = await hashPassword(password);
 
-  return store.transaction(() => {
+  return await store.transaction(async () => {
     const company =
-      store.get<{ id: string; name: string }>(
+      await store.get<{ id: string; name: string }>(
         'SELECT id, name FROM companies ORDER BY created_at ASC LIMIT 1'
       ) ?? null;
 
     const companyId = company?.id ?? randomUUID();
     if (!company) {
-      store.run(
+      await store.run(
         'INSERT INTO companies (id, name, status, created_at) VALUES (?,?,?,?)',
         companyId,
         companyName,
@@ -78,7 +78,7 @@ export async function bootstrapCompany(
     }
 
     const id = randomUUID();
-    store.run(
+    await store.run(
       `INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at)
        VALUES (?,?,?,?,?,?,?,?)`,
       id,

@@ -42,8 +42,8 @@ export interface CompanyRow {
 }
 
 /** The company this principal belongs to. */
-export function companyOf(store: Store, principal: Principal): CompanyRow {
-  const row = store.get<CompanyRow>(
+export async function companyOf(store: Store, principal: Principal): Promise<CompanyRow> {
+  const row = await store.get<CompanyRow>(
     'SELECT id, name, created_at FROM companies WHERE id = ?',
     principal.companyId
   );
@@ -55,12 +55,12 @@ export function companyOf(store: Store, principal: Principal): CompanyRow {
  * Rename the company. The name is the one thing about the company that is
  * the company's own to decide; it appears in every header and every invitation.
  */
-export function renameCompany(store: Store, principal: Principal, name: string): CompanyRow {
+export async function renameCompany(store: Store, principal: Principal, name: string): Promise<CompanyRow> {
   if (!canManageUsers(principal, principal.companyId)) {
     throw new AdminError('Only an administrator may rename the company', 'forbidden');
   }
   const trimmed = name.trim();
-  store.run('UPDATE companies SET name = ? WHERE id = ?', trimmed, principal.companyId);
+  await store.run('UPDATE companies SET name = ? WHERE id = ?', trimmed, principal.companyId);
   return companyOf(store, principal);
 }
 
@@ -76,28 +76,28 @@ export interface CompanyOverview {
  * Counted in SQL rather than by listing and measuring in JavaScript: a fleet
  * that has grown past a page would otherwise report the size of the page.
  */
-export function companyOverview(store: Store, companyId: string, now = Date.now()): CompanyOverview {
-  const count = (sql: string, ...params: (string | number)[]): number =>
-    store.get<{ n: number }>(sql, ...params)?.n ?? 0;
+export async function companyOverview(store: Store, companyId: string, now = Date.now()): Promise<CompanyOverview> {
+  const count = async (sql: string, ...params: (string | number)[]): Promise<number> =>
+    (await store.get<{ n: number }>(sql, ...params))?.n ?? 0;
 
   return {
     people: {
-      total: count('SELECT COUNT(*) AS n FROM users WHERE company_id = ?', companyId),
-      active: count("SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND status = 'active'", companyId),
-      invited: count("SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND status = 'invited'", companyId),
-      administrators: count(
+      total: await count('SELECT COUNT(*) AS n FROM users WHERE company_id = ?', companyId),
+      active: await count("SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND status = 'active'", companyId),
+      invited: await count("SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND status = 'invited'", companyId),
+      administrators: await count(
         "SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND role = 'company' AND status = 'active'",
         companyId
       ),
     },
     batteries: {
-      total: count('SELECT COUNT(*) AS n FROM batteries WHERE company_id = ?', companyId),
-      inService: count(
+      total: await count('SELECT COUNT(*) AS n FROM batteries WHERE company_id = ?', companyId),
+      inService: await count(
         "SELECT COUNT(*) AS n FROM batteries WHERE company_id = ? AND status = 'active'",
         companyId
       ),
       // "Connected" is not a state a pack holds; it is a recent reading.
-      reportingWithin24Hours: count(
+      reportingWithin24Hours: await count(
         `SELECT COUNT(DISTINCT battery_id) AS n FROM telemetry_readings
          WHERE company_id = ? AND recorded_at > ?`,
         companyId,
@@ -105,8 +105,8 @@ export function companyOverview(store: Store, companyId: string, now = Date.now(
       ),
     },
     gateways: {
-      total: count('SELECT COUNT(*) AS n FROM devices WHERE company_id = ?', companyId),
-      inService: count(
+      total: await count('SELECT COUNT(*) AS n FROM devices WHERE company_id = ?', companyId),
+      inService: await count(
         "SELECT COUNT(*) AS n FROM devices WHERE company_id = ? AND security_status = 'valid'",
         companyId
       ),
@@ -166,7 +166,7 @@ export async function createUser(
   const perms = { ...DEFAULT_PERMISSIONS, ...(input.permissions ?? {}) };
 
   const email = input.email.trim().toLowerCase();
-  if (store.get('SELECT id FROM users WHERE email = ?', email)) {
+  if (await store.get('SELECT id FROM users WHERE email = ?', email)) {
     throw new AdminError('That email address is already in use', 'email_taken');
   }
 
@@ -179,8 +179,8 @@ export async function createUser(
   // reasons for the same refusal.
   const passwordHash = byInvitation ? NO_PASSWORD : await hashPassword(input.password!);
 
-  return store.transaction(() => {
-    store.run(
+  return await store.transaction(async () => {
+    await store.run(
       `INSERT INTO users
        (id, company_id, email, display_name, role, password_hash, status, created_at,
         can_read, can_write, can_location, can_health)
@@ -203,7 +203,7 @@ export async function createUser(
 
     if (!byInvitation) return { id };
 
-    const invitation = createInvitation(store, id, principal.userId, now);
+    const invitation = await createInvitation(store, id, principal.userId, now);
     return { id, invitation: { token: invitation.token, expiresAt: invitation.expiresAt } };
   });
 }
@@ -225,14 +225,14 @@ interface UserRow {
  * screen that shows what they may do, and a second round trip per user to find
  * out would make a list of twenty into twenty-one requests.
  */
-export function listUsers(store: Store, principal: Principal): UserRow[] {
+export async function listUsers(store: Store, principal: Principal): Promise<UserRow[]> {
   const q = tenantQuery(principal, 'users', {
     columns:
       'id, company_id, email, display_name, role, status, created_at, ' +
       'can_read, can_write, can_location, can_health',
     orderBy: 'email ASC',
   });
-  return store.all<UserRow>(q.sql, ...q.params);
+  return await store.all<UserRow>(q.sql, ...q.params);
 }
 
 /**
@@ -243,8 +243,8 @@ export function listUsers(store: Store, principal: Principal): UserRow[] {
  * yours" and "not there" are the same answer on purpose, so the endpoint
  * cannot be used to discover who exists.
  */
-export function visibleUser(store: Store, principal: Principal, userId: string): UserRow | null {
-  const target = store.get<UserRow>(
+export async function visibleUser(store: Store, principal: Principal, userId: string): Promise<UserRow | null> {
+  const target = await store.get<UserRow>(
     'SELECT id, company_id, email, display_name, role, status, password_hash FROM users WHERE id = ?',
     userId
   );
@@ -258,13 +258,13 @@ export interface UserPatch {
 }
 
 /** Edit who somebody is. What they may do is `setPermissions`. */
-export function updateUser(
+export async function updateUser(
   store: Store,
   principal: Principal,
   userId: string,
   patch: UserPatch
-): void {
-  const target = visibleUser(store, principal, userId);
+): Promise<void> {
+  const target = await visibleUser(store, principal, userId);
   if (!target) throw new AdminError('User not found', 'not_found');
 
   const sets: string[] = [];
@@ -276,7 +276,7 @@ export function updateUser(
   }
   if (patch.email !== undefined) {
     const email = patch.email.trim().toLowerCase();
-    const clash = store.get<{ id: string }>(
+    const clash = await store.get<{ id: string }>(
       'SELECT id FROM users WHERE email = ? AND id <> ?',
       email,
       userId
@@ -287,7 +287,7 @@ export function updateUser(
   }
   if (sets.length === 0) return;
 
-  store.run(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, ...params, userId);
+  await store.run(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, ...params, userId);
 }
 
 /**
@@ -297,14 +297,14 @@ export function updateUser(
  * expires — up to a fortnight of access after being told they no longer have
  * any. Deactivation has to mean it immediately.
  */
-export function setUserStatus(
+export async function setUserStatus(
   store: Store,
   principal: Principal,
   userId: string,
   status: 'active' | 'suspended',
   now = Date.now()
-): void {
-  const target = visibleUser(store, principal, userId);
+): Promise<void> {
+  const target = await visibleUser(store, principal, userId);
   // Same message for "not yours" and "not there" — see tenancy.assertOwned.
   if (!target) throw new AdminError('User not found', 'not_found');
 
@@ -319,7 +319,7 @@ export function setUserStatus(
   }
 
   if (target.role === 'company' && status === 'suspended') {
-    const others = store.get<{ n: number }>(
+    const others = await store.get<{ n: number }>(
       `SELECT COUNT(*) AS n FROM users
        WHERE company_id = ? AND role = 'company' AND status = 'active' AND id <> ?`,
       target.company_id,
@@ -332,8 +332,8 @@ export function setUserStatus(
     }
   }
 
-  store.run('UPDATE users SET status = ? WHERE id = ?', status, userId);
-  if (status === 'suspended') revokeAllForUser(store, userId, now);
+  await store.run('UPDATE users SET status = ? WHERE id = ?', status, userId);
+  if (status === 'suspended') await revokeAllForUser(store, userId, now);
 }
 
 /**
@@ -348,13 +348,13 @@ export function setUserStatus(
  * audit ledger references its actor, and a trail that cannot say who made a
  * change is not an audit trail. The caller is told which happened.
  */
-export function removeUser(
+export async function removeUser(
   store: Store,
   principal: Principal,
   userId: string,
   now = Date.now()
-): { removed: boolean; reason?: 'has_history' } {
-  const target = visibleUser(store, principal, userId);
+): Promise<{ removed: boolean; reason?: 'has_history' }> {
+  const target = await visibleUser(store, principal, userId);
   if (!target) throw new AdminError('User not found', 'not_found');
 
   if (target.id === principal.userId) {
@@ -376,27 +376,36 @@ export function removeUser(
    * without deleting them and hit a foreign key error on any user who had ever
    * signed in — and its test passed, because that user never had.
    */
-  const referencedBy = (sql: string) => (store.get<{ n: number }>(sql, userId)?.n ?? 0) > 0;
+  const referencedBy = async (sql: string) => ((await store.get<{ n: number }>(sql, userId))?.n ?? 0) > 0;
 
-  const isHistory =
-    referencedBy('SELECT COUNT(*) AS n FROM audit_events WHERE actor_user_id = ?') ||
-    referencedBy('SELECT COUNT(*) AS n FROM commands WHERE issued_by = ?') ||
-    referencedBy('SELECT COUNT(*) AS n FROM support_sessions WHERE admin_user_id = ?') ||
-    referencedBy('SELECT COUNT(*) AS n FROM support_sessions WHERE target_user_id = ?') ||
-    referencedBy('SELECT COUNT(*) AS n FROM user_invitations WHERE invited_by = ?');
+  // Each awaited in turn rather than `||`-chained: a promise is always
+  // truthy, and the chain would have called everyone "history".
+  let isHistory = false;
+  for (const sql of [
+    'SELECT COUNT(*) AS n FROM audit_events WHERE actor_user_id = ?',
+    'SELECT COUNT(*) AS n FROM commands WHERE issued_by = ?',
+    'SELECT COUNT(*) AS n FROM support_sessions WHERE admin_user_id = ?',
+    'SELECT COUNT(*) AS n FROM support_sessions WHERE target_user_id = ?',
+    'SELECT COUNT(*) AS n FROM user_invitations WHERE invited_by = ?',
+  ]) {
+    if (await referencedBy(sql)) {
+      isHistory = true;
+      break;
+    }
+  }
 
   if (isHistory) {
-    setUserStatus(store, principal, userId, 'suspended', now);
+    await setUserStatus(store, principal, userId, 'suspended', now);
     return { removed: false, reason: 'has_history' };
   }
 
-  store.transaction(() => {
+  await store.transaction(async () => {
     // Deleted, not revoked: the account is going, and a revoked row would
     // still hold a foreign key against it.
-    store.run('DELETE FROM refresh_tokens WHERE user_id = ?', userId);
-    store.run('DELETE FROM ble_sessions WHERE user_id = ?', userId);
-    store.run('DELETE FROM user_invitations WHERE user_id = ?', userId);
-    store.run('DELETE FROM users WHERE id = ?', userId);
+    await store.run('DELETE FROM refresh_tokens WHERE user_id = ?', userId);
+    await store.run('DELETE FROM ble_sessions WHERE user_id = ?', userId);
+    await store.run('DELETE FROM user_invitations WHERE user_id = ?', userId);
+    await store.run('DELETE FROM users WHERE id = ?', userId);
   });
 
   return { removed: true };
@@ -412,24 +421,24 @@ export interface NewDevice {
   assignedBatteryId?: string | null;
 }
 
-export function registerDevice(
+export async function registerDevice(
   store: Store,
   principal: Principal,
   input: NewDevice,
   now = Date.now()
-): string {
+): Promise<string> {
   if (!canManageUsers(principal, input.companyId)) {
     throw new AdminError('Not permitted to register devices for that company', 'forbidden');
   }
   const serial = input.serial.trim();
-  if (store.get('SELECT id FROM devices WHERE serial = ?', serial)) {
+  if (await store.get('SELECT id FROM devices WHERE serial = ?', serial)) {
     throw new AdminError('That device serial is already registered', 'email_taken');
   }
 
   // A gateway is assigned to one of the company's own packs or to none. An id
   // from elsewhere is simply not a pack, so the same answer as a typo.
   if (input.assignedBatteryId) {
-    const pack = store.get<{ company_id: string }>(
+    const pack = await store.get<{ company_id: string }>(
       'SELECT company_id FROM batteries WHERE id = ?',
       input.assignedBatteryId
     );
@@ -441,7 +450,7 @@ export function registerDevice(
   // No gateway cap. How much hardware a company runs is the company's own
   // business.
   const id = randomUUID();
-  store.run(
+  await store.run(
     `INSERT INTO devices
      (id, company_id, serial, hardware_revision, firmware_version, assigned_battery_id, security_status, created_at)
      VALUES (?,?,?,?,?,?,?,?)`,
@@ -475,24 +484,24 @@ export interface NewBattery {
  * object, and two records for serial `BAT-00042` would make its history
  * impossible to follow.
  */
-export function registerBattery(
+export async function registerBattery(
   store: Store,
   principal: Principal,
   input: NewBattery,
   now = Date.now()
-): string {
+): Promise<string> {
   if (!canManageUsers(principal, input.companyId)) {
     throw new AdminError('Not permitted to register batteries for that company', 'forbidden');
   }
 
   const serial = input.serial.trim();
-  if (store.get('SELECT id FROM batteries WHERE serial = ?', serial)) {
+  if (await store.get('SELECT id FROM batteries WHERE serial = ?', serial)) {
     throw new AdminError('That battery serial is already registered', 'email_taken');
   }
 
   // No battery cap, for the same reason as people and gateways.
   const id = randomUUID();
-  store.run(
+  await store.run(
     `INSERT INTO batteries
      (id, company_id, serial, chemistry, cell_count, capacity_ah, bms_model, created_at)
      VALUES (?,?,?,?,?,?,?,?)`,
@@ -512,25 +521,25 @@ export function registerBattery(
  * Revocation and quarantine (PRD §8.1). The app refuses to talk to a device
  * that is not `valid`, so this is how a suspect gateway is taken out of service.
  */
-export function setDeviceSecurityStatus(
+export async function setDeviceSecurityStatus(
   store: Store,
   principal: Principal,
   deviceId: string,
   status: 'valid' | 'revoked' | 'quarantined'
-): void {
-  const device = store.get<{ id: string; company_id: string }>(
+): Promise<void> {
+  const device = await store.get<{ id: string; company_id: string }>(
     'SELECT id, company_id FROM devices WHERE id = ?',
     deviceId
   );
   if (!device || !canManageUsers(principal, device.company_id)) {
     throw new AdminError('Device not found', 'not_found');
   }
-  store.run('UPDATE devices SET security_status = ? WHERE id = ?', status, deviceId);
+  await store.run('UPDATE devices SET security_status = ? WHERE id = ?', status, deviceId);
 }
 
-export function listDevices(store: Store, principal: Principal) {
+export async function listDevices(store: Store, principal: Principal) {
   const q = tenantQuery(principal, 'devices', { orderBy: 'serial ASC' });
-  return store.all(q.sql, ...q.params);
+  return await store.all(q.sql, ...q.params);
 }
 
 /* ------------------------------------------------------ editing batteries */
@@ -553,8 +562,12 @@ export interface BatteryPatch {
  * Only an administrator edits packs, and "not yours" is the same answer as
  * "not there" so the route cannot be used to discover serials.
  */
-function ownedBattery(store: Store, principal: Principal, batteryId: string): { id: string; company_id: string } {
-  const row = store.get<{ id: string; company_id: string }>(
+async function ownedBattery(
+  store: Store,
+  principal: Principal,
+  batteryId: string
+): Promise<{ id: string; company_id: string }> {
+  const row = await store.get<{ id: string; company_id: string }>(
     'SELECT id, company_id FROM batteries WHERE id = ?',
     batteryId
   );
@@ -576,17 +589,17 @@ const BATTERY_COLUMN: Record<keyof BatteryPatch, string> = {
   bmsFirmware: 'bms_firmware',
 };
 
-export function updateBattery(
+export async function updateBattery(
   store: Store,
   principal: Principal,
   batteryId: string,
   patch: BatteryPatch
-): void {
-  ownedBattery(store, principal, batteryId);
+): Promise<void> {
+  await ownedBattery(store, principal, batteryId);
 
   if (patch.serial !== undefined) {
     const serial = patch.serial.trim();
-    const clash = store.get<{ id: string }>('SELECT id FROM batteries WHERE serial = ? AND id <> ?', serial, batteryId);
+    const clash = await store.get<{ id: string }>('SELECT id FROM batteries WHERE serial = ? AND id <> ?', serial, batteryId);
     if (clash) throw new AdminError('That battery serial is already registered', 'email_taken');
     patch = { ...patch, serial };
   }
@@ -601,7 +614,7 @@ export function updateBattery(
   }
   if (sets.length === 0) return;
 
-  store.run(`UPDATE batteries SET ${sets.join(', ')} WHERE id = ?`, ...params, batteryId);
+  await store.run(`UPDATE batteries SET ${sets.join(', ')} WHERE id = ?`, ...params, batteryId);
 }
 
 /**
@@ -611,16 +624,16 @@ export function updateBattery(
  * ledger references it by id and a ledger entry pointing at nothing is a
  * ledger with a hole in it. Any live BLE session on it is ended.
  */
-export function retireBattery(
+export async function retireBattery(
   store: Store,
   principal: Principal,
   batteryId: string,
   now = Date.now()
-): void {
-  ownedBattery(store, principal, batteryId);
-  store.transaction(() => {
-    store.run("UPDATE batteries SET status = 'retired' WHERE id = ?", batteryId);
-    store.run(
+): Promise<void> {
+  await ownedBattery(store, principal, batteryId);
+  await store.transaction(async () => {
+    await store.run("UPDATE batteries SET status = 'retired' WHERE id = ?", batteryId);
+    await store.run(
       'UPDATE ble_sessions SET ended_at = ? WHERE battery_id = ? AND ended_at IS NULL',
       now,
       batteryId
@@ -628,7 +641,7 @@ export function retireBattery(
   });
 }
 
-export function reinstateBattery(store: Store, principal: Principal, batteryId: string): void {
-  ownedBattery(store, principal, batteryId);
-  store.run("UPDATE batteries SET status = 'active' WHERE id = ?", batteryId);
+export async function reinstateBattery(store: Store, principal: Principal, batteryId: string): Promise<void> {
+  await ownedBattery(store, principal, batteryId);
+  await store.run("UPDATE batteries SET status = 'active' WHERE id = ?", batteryId);
 }

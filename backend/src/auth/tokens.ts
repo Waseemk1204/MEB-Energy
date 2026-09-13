@@ -117,7 +117,7 @@ export interface IssuedRefresh {
 }
 
 /** Raw token is returned once and never stored — only its hash is kept. */
-export function issueRefreshToken(
+export async function issueRefreshToken(
   store: Store,
   userId: string,
   now = Date.now(),
@@ -127,12 +127,12 @@ export function issueRefreshToken(
    * rather than becoming anonymous the first time its token renews.
    */
   deviceLabel: string | null = null
-): IssuedRefresh {
+): Promise<IssuedRefresh> {
   const token = randomBytes(32).toString('base64url');
   const id = randomUUID();
   const expiresAt = now + REFRESH_TTL_MS;
 
-  store.run(
+  await store.run(
     'INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, created_at, device_label) VALUES (?,?,?,?,?,?)',
     id,
     userId,
@@ -145,8 +145,8 @@ export function issueRefreshToken(
   return { token, id, userId, expiresAt };
 }
 
-export function revokeAllForUser(store: Store, userId: string, now = Date.now()): void {
-  store.run(
+export async function revokeAllForUser(store: Store, userId: string, now = Date.now()): Promise<void> {
+  await store.run(
     'UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL',
     now,
     userId
@@ -160,12 +160,12 @@ export function revokeAllForUser(store: Store, userId: string, now = Date.now())
  * that user is revoked. We cannot distinguish a replayed steal from a confused
  * client, and only one of those is safe to assume.
  */
-export function rotateRefreshToken(
+export async function rotateRefreshToken(
   store: Store,
   rawToken: string,
   now = Date.now()
-): IssuedRefresh {
-  const row = store.get<RefreshRow>(
+): Promise<IssuedRefresh> {
+  const row = await store.get<RefreshRow>(
     'SELECT id, user_id, expires_at, revoked_at, replaced_by, device_label FROM refresh_tokens WHERE token_hash = ?',
     hashToken(rawToken)
   );
@@ -173,7 +173,7 @@ export function rotateRefreshToken(
   if (!row) throw new AuthError('Refresh token is not recognised', 'unknown_token');
 
   if (row.revoked_at !== null) {
-    revokeAllForUser(store, row.user_id, now);
+    await revokeAllForUser(store, row.user_id, now);
     throw new AuthError(
       'Refresh token has already been used; all sessions for this user were revoked',
       'reuse_detected'
@@ -184,11 +184,11 @@ export function rotateRefreshToken(
     throw new AuthError('Refresh token has expired', 'expired_token');
   }
 
-  return store.transaction(() => {
+  return await store.transaction(async () => {
     // Rotation is the same device continuing, not a new one, so it keeps the
     // label.
-    const next = issueRefreshToken(store, row.user_id, now, row.device_label ?? null);
-    store.run(
+    const next = await issueRefreshToken(store, row.user_id, now, row.device_label ?? null);
+    await store.run(
       'UPDATE refresh_tokens SET revoked_at = ?, replaced_by = ? WHERE id = ?',
       now,
       next.id,
@@ -199,8 +199,8 @@ export function rotateRefreshToken(
 }
 
 /** Sign-out. Idempotent: an unknown token is not an error worth surfacing. */
-export function revokeRefreshToken(store: Store, rawToken: string, now = Date.now()): void {
-  store.run(
+export async function revokeRefreshToken(store: Store, rawToken: string, now = Date.now()): Promise<void> {
+  await store.run(
     'UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL',
     now,
     hashToken(rawToken)

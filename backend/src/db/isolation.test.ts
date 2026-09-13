@@ -10,7 +10,7 @@ import {
   tenantQuery,
   type Principal,
 } from './tenancy.js';
-import { seedCompany } from '../db/testFixtures.js';
+import { createTestStore, seedCompany } from '../db/testFixtures.js';
 
 /**
  * Adversarial isolation testing, from the first table rather than after the
@@ -34,7 +34,7 @@ const acmeCompany = principal('company', ACME);
 const rivalUser = principal('user', RIVAL);
 
 /** Every row across both companies, for asserting the table itself. */
-const everyBattery = () => store.all<BatteryRow>('SELECT * FROM batteries');
+const everyBattery = async () => await store.all<BatteryRow>('SELECT * FROM batteries');
 
 interface BatteryRow {
   id: string;
@@ -42,20 +42,20 @@ interface BatteryRow {
   serial: string;
 }
 
-const batteriesFor = (p: Principal, where?: string, params: (string | number)[] = []) => {
+const batteriesFor = async (p: Principal, where?: string, params: (string | number)[] = []) => {
   const q = tenantQuery(p, 'batteries', where ? { where, params } : {});
-  return store.all<BatteryRow>(q.sql, ...q.params);
+  return await store.all<BatteryRow>(q.sql, ...q.params);
 };
 
-beforeEach(() => {
-  store = createStore();
+beforeEach(async () => {
+  store = await createTestStore();
   const now = Date.now();
 
   for (const [id, name] of [
     [ACME, 'Acme EV'],
     [RIVAL, 'Rival Fleet'],
   ] as const) {
-    seedCompany(store, id, name, now);
+    await seedCompany(store, id, name, now);
   }
 
   for (const [companyId, serial] of [
@@ -63,7 +63,7 @@ beforeEach(() => {
     [ACME, 'BAT-ACME-2'],
     [RIVAL, 'BAT-RIVAL-1'],
   ] as const) {
-    store.run(
+    await store.run(
       'INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, created_at) VALUES (?,?,?,?,?,?)',
       randomUUID(),
       companyId,
@@ -78,30 +78,30 @@ beforeEach(() => {
 afterEach(() => store.close());
 
 describe('scoped queries', () => {
-  it('returns only the caller’s own batteries', () => {
-    const rows = batteriesFor(acmeUser);
+  it('returns only the caller’s own batteries', async () => {
+    const rows = await batteriesFor(acmeUser);
     assert.equal(rows.length, 2);
     assert.ok(rows.every((r) => r.company_id === ACME));
   });
 
-  it('shows a rival nothing of ours', () => {
+  it('shows a rival nothing of ours', async () => {
     assert.deepEqual(
-      batteriesFor(rivalUser).map((r) => r.serial),
+      (await batteriesFor(rivalUser)).map((r) => r.serial),
       ['BAT-RIVAL-1']
     );
   });
 
-  it('keeps the scope when another condition is added', () => {
+  it('keeps the scope when another condition is added', async () => {
     // The failure mode this prevents: someone adds a filter and displaces the
     // company clause while rewriting the WHERE.
-    const rows = batteriesFor(acmeUser, 'chemistry = ?', ['LiFePO4']);
+    const rows = await batteriesFor(acmeUser, 'chemistry = ?', ['LiFePO4']);
     assert.equal(rows.length, 2);
     assert.ok(rows.every((r) => r.company_id === ACME));
   });
 
   /** An OR in a caller's condition must not be able to widen the scope. */
-  it('cannot be widened by an injected OR in the extra condition', () => {
-    const rows = batteriesFor(acmeUser, "chemistry = ? OR 1=1", ['nonsense']);
+  it('cannot be widened by an injected OR in the extra condition', async () => {
+    const rows = await batteriesFor(acmeUser, "chemistry = ? OR 1=1", ['nonsense']);
     assert.equal(rows.length, 2);
     assert.ok(rows.every((r) => r.company_id === ACME));
   });
@@ -110,16 +110,16 @@ describe('scoped queries', () => {
    * Nobody is platform-wide. The company's administrator sees the company's
    * rows and nothing else — there is no principal a scoped query widens for.
    */
-  it('gives an administrator the same scope as everyone else', () => {
-    const rows = batteriesFor(acmeCompany);
+  it('gives an administrator the same scope as everyone else', async () => {
+    const rows = await batteriesFor(acmeCompany);
     assert.equal(rows.length, 2);
     assert.ok(rows.every((r) => r.company_id === ACME));
   });
 
-  it('binds values rather than interpolating them', () => {
+  it('binds values rather than interpolating them', async () => {
     const q = tenantQuery(acmeUser, 'batteries', { where: 'serial = ?', params: ["'; DROP TABLE batteries; --"] });
-    assert.doesNotThrow(() => store.all(q.sql, ...q.params));
-    assert.equal(everyBattery().length, 3); // table intact
+    await assert.doesNotReject(async () => store.all(q.sql, ...q.params));
+    assert.equal((await everyBattery()).length, 3); // table intact
   });
 
   it('never emits an unscoped query', () => {
@@ -146,24 +146,24 @@ describe('the scoping API refuses to be misused', () => {
 
 /** The ID-guessing attack: a valid id from another tenant, fetched by key. */
 describe('ownership checks on direct id lookups', () => {
-  const bySerial = (serial: string) =>
-    store.get<BatteryRow>('SELECT * FROM batteries WHERE serial = ?', serial);
+  const bySerial = async (serial: string) =>
+    await store.get<BatteryRow>('SELECT * FROM batteries WHERE serial = ?', serial);
 
-  it('refuses another tenant’s row', () => {
-    assert.throws(() => assertOwned(acmeUser, bySerial('BAT-RIVAL-1'), 'Battery'), TenantScopeError);
+  it('refuses another tenant’s row', async () => {
+    await assert.rejects(async () => assertOwned(acmeUser, await bySerial('BAT-RIVAL-1'), 'Battery'), TenantScopeError);
   });
 
-  it('allows your own row', () => {
-    assert.doesNotThrow(() => assertOwned(acmeUser, bySerial('BAT-ACME-1'), 'Battery'));
+  it('allows your own row', async () => {
+    await assert.doesNotReject(async () => assertOwned(acmeUser, await bySerial('BAT-ACME-1'), 'Battery'));
   });
 
-  it('refuses even an administrator another company’s row', () => {
-    assert.throws(() => assertOwned(acmeCompany, bySerial('BAT-RIVAL-1'), 'Battery'), TenantScopeError);
+  it('refuses even an administrator another company’s row', async () => {
+    await assert.rejects(async () => assertOwned(acmeCompany, await bySerial('BAT-RIVAL-1'), 'Battery'), TenantScopeError);
   });
 
   /** Confirming existence is itself a disclosure, so the cases are identical. */
-  it('does not reveal that a foreign row exists', () => {
-    const messageFor = (row: BatteryRow | undefined) => {
+  it('does not reveal that a foreign row exists', async () => {
+    const messageFor = async (row: BatteryRow | undefined) => {
       try {
         assertOwned(acmeUser, row, 'Battery');
         return null;
@@ -171,7 +171,7 @@ describe('ownership checks on direct id lookups', () => {
         return (e as Error).message;
       }
     };
-    assert.equal(messageFor(bySerial('BAT-RIVAL-1')), messageFor(undefined));
+    assert.equal(await messageFor(await bySerial('BAT-RIVAL-1')), await messageFor(undefined));
   });
 });
 
@@ -209,9 +209,9 @@ describe('role permissions', () => {
  * something is actively trying to rewrite it.
  */
 describe('the audit ledger is append-only', () => {
-  const seedAudit = () => {
+  const seedAudit = async () => {
     const id = randomUUID();
-    store.run(
+    await store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, created_at) VALUES (?,?,?,?,?,?,?)',
       'actor-1',
       ACME,
@@ -221,7 +221,7 @@ describe('the audit ledger is append-only', () => {
       'x',
       Date.now()
     );
-    store.run(
+    await store.run(
       `INSERT INTO audit_events
        (id, company_id, actor_user_id, actor_role, parameter_key, old_value, new_value,
         source, result, occurred_at, recorded_at, seq)
@@ -242,33 +242,33 @@ describe('the audit ledger is append-only', () => {
     return id;
   };
 
-  it('accepts new entries', () => {
-    const id = seedAudit();
-    assert.ok(store.get('SELECT id FROM audit_events WHERE id = ?', id));
+  it('accepts new entries', async () => {
+    const id = await seedAudit();
+    assert.ok(await store.get('SELECT id FROM audit_events WHERE id = ?', id));
   });
 
-  it('refuses to let an entry be altered', () => {
-    const id = seedAudit();
-    assert.throws(
+  it('refuses to let an entry be altered', async () => {
+    const id = await seedAudit();
+    await assert.rejects(
       () => store.run('UPDATE audit_events SET result = ? WHERE id = ?', 'rejected', id),
       /append-only/
     );
   });
 
-  it('refuses to let an entry be deleted', () => {
-    const id = seedAudit();
-    assert.throws(() => store.run('DELETE FROM audit_events WHERE id = ?', id), /append-only/);
+  it('refuses to let an entry be deleted', async () => {
+    const id = await seedAudit();
+    await assert.rejects(() => store.run('DELETE FROM audit_events WHERE id = ?', id), /append-only/);
   });
 
-  it('holds against a bulk statement too', () => {
-    seedAudit();
-    assert.throws(() => store.exec('DELETE FROM audit_events'), /append-only/);
-    assert.throws(() => store.exec("UPDATE audit_events SET reason = 'tampered'"), /append-only/);
+  it('holds against a bulk statement too', async () => {
+    await seedAudit();
+    await assert.rejects(() => store.exec('DELETE FROM audit_events'), /append-only/);
+    await assert.rejects(() => store.exec("UPDATE audit_events SET reason = 'tampered'"), /append-only/);
   });
 
   /** An unknown result value would let a caller invent an outcome. */
-  it('only accepts the defined outcomes', () => {
-    assert.throws(
+  it('only accepts the defined outcomes', async () => {
+    await assert.rejects(
       () =>
         store.run(
           `INSERT INTO audit_events
@@ -290,8 +290,8 @@ describe('the audit ledger is append-only', () => {
 
 /** A rootless user would be a principal the scoping rules cannot classify. */
 describe('the schema refuses impossible principals', () => {
-  const insertUser = (companyId: string | null, role: string) =>
-    store.run(
+  const insertUser = async (companyId: string | null, role: string) =>
+    await store.run(
       'INSERT INTO users (id, company_id, email, display_name, role, password_hash, created_at) VALUES (?,?,?,?,?,?,?)',
       randomUUID(),
       companyId,
@@ -302,24 +302,24 @@ describe('the schema refuses impossible principals', () => {
       Date.now()
     );
 
-  it('rejects a user with no company', () => {
-    assert.throws(() => insertUser(null, 'user'), /NOT NULL/i);
+  it('rejects a user with no company', async () => {
+    await assert.rejects(async () => await insertUser(null, 'user'), /NOT NULL|not-null/i);
   });
 
-  it('rejects an administrator with no company', () => {
-    assert.throws(() => insertUser(null, 'company'), /NOT NULL/i);
+  it('rejects an administrator with no company', async () => {
+    await assert.rejects(async () => await insertUser(null, 'company'), /NOT NULL|not-null/i);
   });
 
   /** The platform-administrator role is gone from the schema, not only from the code. */
-  it('rejects the retired platform-admin role', () => {
-    assert.throws(() => insertUser(ACME, 'admin'), /CHECK/i);
+  it('rejects the retired platform-admin role', async () => {
+    await assert.rejects(async () => await insertUser(ACME, 'admin'), /CHECK/i);
   });
 
-  it('accepts a properly scoped user', () => {
-    assert.doesNotThrow(() => insertUser(ACME, 'user'));
+  it('accepts a properly scoped user', async () => {
+    await assert.doesNotReject(async () => await insertUser(ACME, 'user'));
   });
 
-  it('accepts a properly scoped administrator', () => {
-    assert.doesNotThrow(() => insertUser(ACME, 'company'));
+  it('accepts a properly scoped administrator', async () => {
+    await assert.doesNotReject(async () => await insertUser(ACME, 'company'));
   });
 });
