@@ -969,6 +969,20 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   );
 
   /**
+   * The front door. The API has no user interface of its own; somebody who
+   * opens its address in a browser is checking that it is there, and a
+   * Fastify "Route GET:/ not found" reads as though it is not.
+   */
+  app.get('/', async (_request, reply) =>
+    reply.send({
+      name: 'MEB Energy API',
+      ready: '/ready',
+      health: '/health',
+      hint: 'The app talks to this; there is nothing to see here by hand.',
+    })
+  );
+
+  /**
    * Liveness. The process is running and can answer.
    *
    * Deliberately touches nothing: an orchestrator uses this to decide whether

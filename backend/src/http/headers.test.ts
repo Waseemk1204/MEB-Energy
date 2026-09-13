@@ -110,6 +110,13 @@ describe('readiness', () => {
     assert.equal(res.statusCode, 200);
   });
 
+  /** Opening the API's address in a browser must not read as a broken deploy. */
+  it('answers the root with where to look, not a 404', async () => {
+    const res = await app.inject({ method: 'GET', url: '/' });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.json().ready, '/ready');
+  });
+
   /**
    * The failure this check exists for. Closing the store is how SQLite loses
    * its database; the shared PGlite engine cannot be closed per test, so
