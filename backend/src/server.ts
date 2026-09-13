@@ -1012,7 +1012,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         // evaluated against a policy. Not ready.
         return reply.status(503).send({ ready: false, reason: 'parameter definitions are missing' });
       }
-      return reply.send({ ready: true, parameters: row!.n });
+      // Whether anyone can sign in. A fresh deployment whose bootstrap never
+      // ran answers every login with 401, which looks like a wrong password
+      // from outside; this says which it is without naming anybody.
+      const users = await store.get<{ n: number }>('SELECT COUNT(*) AS n FROM users');
+      return reply.send({ ready: true, parameters: row!.n, bootstrapped: (users?.n ?? 0) > 0 });
     } catch {
       // The reason is not the caller's business, and the detail is in the log.
       return reply.status(503).send({ ready: false, reason: 'database is not answering' });

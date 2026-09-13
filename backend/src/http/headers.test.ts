@@ -110,6 +110,24 @@ describe('readiness', () => {
     assert.equal(res.statusCode, 200);
   });
 
+  /**
+   * A deployment whose bootstrap never ran refuses every login with 401,
+   * which from outside reads as a wrong password. Readiness says which.
+   */
+  it('says whether anyone can sign in yet', async () => {
+    const before = await app.inject({ method: 'GET', url: '/ready' });
+    assert.equal(before.json().bootstrapped, false);
+    await store.run(
+      'INSERT INTO companies (id, name, status, created_at) VALUES (?,?,?,?)', 'c', 'C', 'active', 1
+    );
+    await store.run(
+      'INSERT INTO users (id, company_id, email, display_name, role, password_hash, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
+      'u', 'c', 'a@b.c', 'A', 'company', 'x', 'active', 1
+    );
+    const after = await app.inject({ method: 'GET', url: '/ready' });
+    assert.equal(after.json().bootstrapped, true);
+  });
+
   /** Opening the API's address in a browser must not read as a broken deploy. */
   it('answers the root with where to look, not a 404', async () => {
     const res = await app.inject({ method: 'GET', url: '/' });
