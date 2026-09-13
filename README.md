@@ -42,7 +42,10 @@ The bootstrap variables create the company and its first administrator, and
 nothing, so setting them cannot mint an account on a running system.
 
 [`scripts/dev-backend.sh`](scripts/dev-backend.sh) does the above with
-development defaults.
+development defaults. For something to look at, `node scripts/seedDemo.mjs`
+in `backend/` fills the company through the real API — technicians, packs,
+gateways, a week of telemetry, on-site and remote changes — and prints the
+logins it made. Safe to run twice.
 
 ### 2. The app
 
