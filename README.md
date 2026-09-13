@@ -100,7 +100,20 @@ inside, exactly as it does locally. Environment variables:
 The first request after a deploy runs the migration, seeds the parameter
 definitions and bootstraps the company — all idempotent, so a cold start is
 safe to repeat. `GET /ready` on the API's URL should answer
-`{"ready":true,"parameters":29}`.
+`{"ready":true,"parameters":29,"bootstrapped":true}`; `bootstrapped: false`
+means the `BOOTSTRAP_ADMIN_*` variables were not set when the function first
+started — set them for Production and redeploy.
+
+The bootstrap never changes an existing account, so editing
+`BOOTSTRAP_ADMIN_PASSWORD` later changes nothing. To set a password from
+outside the product — the only recovery there is, since the product has no
+email — pull the connection string from the Neon store and run, in `backend/`:
+
+```bash
+DATABASE_URL='postgres://…' npx tsx scripts/resetPassword.mts you@example.com 'a-new-password'
+```
+
+It signs every session for that account out, the same as a suspension.
 
 **3. The app** — import the repo again with **Root Directory `mobile`** and one
 environment variable, `EXPO_PUBLIC_API_URL`, set to the API project's URL.
