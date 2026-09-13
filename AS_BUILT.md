@@ -29,7 +29,7 @@ this section says what replaced it.
 | `/companies`, `/platform/overview`, `/companies/:id/*` | `GET /company` (name + server-counted overview), `PATCH /company` (rename). |
 | `POST /users` taking a `companyId` and any role | Takes `role: 'company' \| 'user'` and optional permissions; the company is the caller's own, and a body naming another is 404. |
 | `console/` (React + Vite) with Batteries, Battery, Audit, Support, Users, Devices, Companies, AcceptInvite | Deleted. Its operational pages that the app lacked were rebuilt inside the app: `accept-invite`, `company/gateways`, `company/ledger`, `company/support`, `company/settings`; `users/[id]` gained editing. |
-| `.github/workflows/ci.yml` | Deleted; this repository is local and has no remote. `./verify.sh` is the whole check. |
+| `.github/workflows/ci.yml` | Deleted with the platform repository. `./verify.sh` is the whole check; it runs the same steps locally. |
 
 ### What the company administrator inherited
 
