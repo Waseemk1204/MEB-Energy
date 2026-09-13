@@ -110,7 +110,7 @@ function Field({
         style={[
           T.rowValue,
           styles.input,
-          { color: p.leatherInk, backgroundColor: p.panelBase, borderColor: p.leatherStitch },
+          { color: p.inkStrong, backgroundColor: p.panelBase, borderColor: p.leatherStitch },
         ]}
       />
     </View>

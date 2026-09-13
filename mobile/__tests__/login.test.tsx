@@ -133,3 +133,23 @@ describe('the screen itself', () => {
     expect(q.queryByText('Pack Current')).toBeNull();
   });
 });
+
+/**
+ * The fields are white panels on the olive hero. Their text must be the
+ * dark ink, not the hero's white: white on white is a field that accepts
+ * typing and shows none of it, which is exactly how it shipped once.
+ */
+describe('the fields can be read', () => {
+  const flat = (style: unknown): Record<string, unknown> =>
+    Object.assign({}, ...(Array.isArray(style) ? style.flat(Infinity) : [style]).filter(Boolean));
+
+  it('uses dark ink on the white input', async () => {
+    const q = await wrap();
+    for (const label of ['Email', 'Password']) {
+      const s = flat(q.getByLabelText(label).props.style);
+      expect(s.backgroundColor).toBe('#FFFFFF');
+      expect(s.color).not.toBe('#FFFFFF');
+      expect(s.color).toBe('#1F2A16');
+    }
+  });
+});
