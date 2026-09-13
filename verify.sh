@@ -58,7 +58,7 @@ run() {
 }
 
 step "backend"
-run backend "typecheck" npx tsc --noEmit
+run backend "typecheck" npm run typecheck
 run backend "tests" npm test
 
 step "app"

@@ -6,7 +6,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -p tsconfig.check.json"
   },
   "keywords": [],
   "author": "",
