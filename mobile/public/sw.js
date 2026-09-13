@@ -21,7 +21,7 @@
  * than the one after.
  */
 
-const VERSION = 'meb-shell-v1';
+const VERSION = 'meb-shell-v2';
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.png', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -42,6 +42,15 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+/**
+ * What to answer when there is neither a cached copy nor a network. A
+ * rejected promise here surfaces as "Uncaught (in promise) TypeError: Failed
+ * to fetch" in the console and the browser shows its own error page; a plain
+ * 503 is the honest answer and is what the app's own error handling expects.
+ */
+const offline = () =>
+  new Response('Offline', { status: 503, statusText: 'Offline', headers: { 'content-type': 'text/plain' } });
+
 /** Only the app's own origin, and only reads. */
 function isShellRequest(request) {
   if (request.method !== 'GET') return false;
@@ -59,11 +68,13 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(VERSION).then((cache) => cache.put('/', copy));
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(VERSION).then((cache) => cache.put('/', copy));
+          }
           return response;
         })
-        .catch(() => caches.match('/'))
+        .catch(() => caches.match('/').then((hit) => hit ?? offline()))
     );
     return;
   }
@@ -75,13 +86,15 @@ self.addEventListener('fetch', (event) => {
     caches.match(request).then(
       (hit) =>
         hit ||
-        fetch(request).then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(VERSION).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
+        fetch(request)
+          .then((response) => {
+            if (response.ok) {
+              const copy = response.clone();
+              caches.open(VERSION).then((cache) => cache.put(request, copy));
+            }
+            return response;
+          })
+          .catch(offline)
     )
   );
 });
