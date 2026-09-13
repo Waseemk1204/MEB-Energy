@@ -4,6 +4,7 @@
  *
  *   DATABASE_URL=postgres://… npx tsx scripts/resetPassword.mts you@example.com 'a-new-password'
  *   DATABASE_FILE=company.db  npx tsx scripts/resetPassword.mts you@example.com 'a-new-password'
+ *   DATABASE_URL=postgres://… npx tsx scripts/resetPassword.mts --list
  *
  * There is no self-service recovery in the product, deliberately: it has no
  * email. This is the operator's path -- somebody who holds the database
@@ -21,8 +22,25 @@ import { revokeAllForUser } from '../src/auth/tokens.js';
 import { MIN_PASSWORD_LENGTH } from '../src/auth/invitations.js';
 
 const [email, password] = process.argv.slice(2);
+
+// `--list`: who exists, so the right account can be named. Emails and roles
+// only; whoever holds the connection string can read the table anyway.
+if (email === '--list') {
+  const { store } = await openStore(process.env);
+  const rows = await store.all<{ email: string; role: string; status: string }>(
+    'SELECT email, role, status FROM users ORDER BY created_at ASC'
+  );
+  if (rows.length === 0) console.log('No accounts yet.');
+  for (const r of rows) {
+    console.log(`  ${r.email.padEnd(40)} ${r.role === 'company' ? 'administrator' : 'technician'}  ${r.status}`);
+  }
+  await store.close();
+  process.exit(0);
+}
+
 if (!email || !password) {
   console.error('usage: npx tsx scripts/resetPassword.mts <email> <new password>');
+  console.error('       npx tsx scripts/resetPassword.mts --list');
   process.exit(2);
 }
 if (password.length < MIN_PASSWORD_LENGTH) {
