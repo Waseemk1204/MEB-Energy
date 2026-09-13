@@ -20,12 +20,12 @@ describe('a source declares whether it is real', () => {
   });
 
   it('the BLE source says it is', () => {
-    expect(new BleSource('KYE-000184').simulated).toBe(false);
+    expect(new BleSource({} as never).simulated).toBe(false);
   });
 
   /** Two sources that both claimed the same thing would make the flag useless. */
   it('they disagree, which is the point', () => {
-    expect(new MockSource().simulated).not.toBe(new BleSource('x').simulated);
+    expect(new MockSource().simulated).not.toBe(new BleSource({} as never).simulated);
   });
 });
 

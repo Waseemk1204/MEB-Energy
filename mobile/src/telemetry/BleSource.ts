@@ -1,67 +1,50 @@
 /**
- * BLE transport to the ESP32 gateway.
+ * BLE transport to the gateway.
  *
- * Deliberately the same interface as MockSource: swapping USE_MOCK must not
+ * Deliberately the same interface as MockSource: swapping the source must not
  * touch a single screen file. The gateway hands us already-normalized frames —
  * the JBD adapter lives in firmware, so nothing here parses vendor packets.
  *
- * Security posture (Build Plan Phase 4): this client refuses to read from or
- * relay commands to any peripheral that fails device authentication. An
- * unverified peripheral is never treated as a company gateway.
+ * Security posture: the GatewayClient this wraps has already read the
+ * gateway's identity, checked it against the company's list, and completed
+ * the mutual handshake. A client that did not pass all three never reaches
+ * here — see ble/linkGateway.ts, which is the only thing that constructs one.
  */
 import type { BatterySnapshot, TelemetrySource, WriteResult } from './types';
-
-/** Placeholder service/characteristic identifiers — align with the firmware track. */
-export const KYE_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-export const KYE_TELEMETRY_CHAR = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
-export const KYE_COMMAND_CHAR = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
-
-export class DeviceAuthenticationError extends Error {
-  constructor(deviceId: string) {
-    super(`Peripheral ${deviceId} failed gateway authentication`);
-    this.name = 'DeviceAuthenticationError';
-  }
-}
+import { WriteTimeoutError } from './writeOutcome';
+import { BmsTimeoutError, CommandRefusedError, type GatewayClient } from '../ble/gateway';
 
 export class BleSource implements TelemetrySource {
   /** Read off a real BMS over a real link. */
   readonly simulated = false;
 
-  private onSnapshot: ((s: BatterySnapshot) => void) | null = null;
-  private subscription: { remove: () => void } | null = null;
-
-  constructor(private readonly deviceId: string) {}
+  constructor(private readonly gateway: GatewayClient) {}
 
   start(onSnapshot: (s: BatterySnapshot) => void): void {
-    this.onSnapshot = onSnapshot;
-    // Wiring order, once the firmware contract is stable:
-    //   1. BleManager.connectToDevice(this.deviceId)
-    //   2. authenticate — challenge/response against the device's secure element.
-    //      On failure: throw DeviceAuthenticationError and do NOT subscribe.
-    //   3. discoverAllServicesAndCharacteristics()
-    //   4. monitorCharacteristicForService(KYE_SERVICE_UUID, KYE_TELEMETRY_CHAR, cb)
-    //   5. decode each frame into BatterySnapshot and call this.emit()
-    throw new Error(
-      'BleSource is not wired yet — the firmware telemetry contract is still in ' +
-        'definition. Run with USE_MOCK = true until the gateway ships.'
-    );
-  }
-
-  protected emit(snapshot: BatterySnapshot): void {
-    this.onSnapshot?.(snapshot);
+    void this.gateway.subscribeTelemetry(onSnapshot);
   }
 
   stop(): void {
-    this.subscription?.remove();
-    this.subscription = null;
-    this.onSnapshot = null;
+    void this.gateway.close();
   }
 
-  async readSetting(_key: string): Promise<number> {
-    throw new Error('BleSource.readSetting is not wired yet');
+  async readSetting(key: string): Promise<number> {
+    return this.gateway.readParam(key);
   }
 
-  async writeSetting(_key: string, _value: number): Promise<WriteResult> {
-    throw new Error('BleSource.writeSetting is not wired yet');
+  /**
+   * What the BMS holds afterwards is what is reported, never what was sent.
+   * A silent BMS is a timeout — the write may have landed — and the
+   * classifier says so; a refusal is a refusal, with the gateway's reason.
+   */
+  async writeSetting(key: string, value: number): Promise<WriteResult> {
+    try {
+      const { readBack } = await this.gateway.writeParam(key, value);
+      return { ok: true, readBack };
+    } catch (error) {
+      if (error instanceof BmsTimeoutError) throw new WriteTimeoutError();
+      if (error instanceof CommandRefusedError) return { ok: false, error: `Refused: ${error.message}.` };
+      throw error;
+    }
   }
 }

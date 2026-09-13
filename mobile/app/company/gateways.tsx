@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { radii, space } from '../../src/theme/tokens';
@@ -14,9 +15,11 @@ import {
   SECURITY_TONE,
   listGateways,
   registerGateway,
+  rotateGatewayKey,
   setGatewaySecurity,
   type Gateway,
   type GatewaySecurity,
+  type RegisteredGateway,
 } from '../../src/api/gateways';
 import { listFleet } from '../../src/api/company';
 import { useLoad } from '../../src/ui/useLoad';
@@ -44,6 +47,12 @@ export default function Gateways() {
   const packs = data?.packs ?? [];
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * The provisioning line, shown once. The key in it is never shown again
+   * by the dashboard; whoever is holding the gateway pastes it into the
+   * gateway's console now, or rotates the key later and gets a new one.
+   */
+  const [provisioning, setProvisioning] = useState<{ serial: string; line: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const [serial, setSerial] = useState('');
   const [hardware, setHardware] = useState('');
@@ -57,11 +66,12 @@ export default function Gateways() {
     setBusy('new');
     setError(null);
     try {
-      await registerGateway(api, {
+      const registered = await registerGateway(api, {
         serial: serial.trim(),
         hardwareRevision: hardware.trim(),
         firmwareVersion: firmware.trim(),
       });
+      await showProvisioning(serial.trim(), registered);
       setSerial('');
       setHardware('');
       setFirmware('');
@@ -73,6 +83,29 @@ export default function Gateways() {
       setBusy(null);
     }
   };
+
+  const showProvisioning = async (gatewaySerial: string, registered: RegisteredGateway) => {
+    setProvisioning({ serial: gatewaySerial, line: registered.provisioning });
+    await Clipboard.setStringAsync(registered.provisioning).catch(() => undefined);
+  };
+
+  /**
+   * A new key: after a phone that held the old one is lost, or for a
+   * gateway registered before keys existed. Until the gateway is provisioned
+   * again with the new line, the app refuses it — which is the point.
+   */
+  const onRotate = (gateway: Gateway) =>
+    confirmDestructive(
+      `New key for ${gateway.serial}?`,
+      'Every app will refuse this gateway until the new provisioning line is typed into its console. The old key stops working now.',
+      'Rotate key',
+      () => {
+        void rotateGatewayKey(api, gateway.id)
+          .then((r) => showProvisioning(gateway.serial, r))
+          .then(reload)
+          .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : 'Could not rotate the key'));
+      }
+    );
 
   const change = async (gateway: Gateway, next: GatewaySecurity) => {
     setBusy(gateway.id);
@@ -125,6 +158,22 @@ export default function Gateways() {
       {notice ? (
         <View style={[styles.notice, { backgroundColor: p.panelAlt }]} accessibilityRole="alert">
           <Text style={[T.rowLabel, { color: p.inkStrong }]}>{notice}</Text>
+        </View>
+      ) : null}
+
+      {provisioning ? (
+        <View style={[styles.notice, { backgroundColor: p.panelAlt, borderLeftWidth: 3, borderLeftColor: p.accent }]} accessibilityRole="alert">
+          <Text style={[T.rowValue, { color: p.inkStrong }]}>Provision {provisioning.serial} now</Text>
+          <Text style={[T.caption, { color: p.inkSoft, marginTop: 4 }]}>
+            Copied to the clipboard. Paste this line into the gateway’s serial console (115200 baud).
+            It is shown once; a lost line means rotating the key.
+          </Text>
+          <Text selectable style={[T.caption, styles.mono, { color: p.inkStrong }]} accessibilityLabel="Provisioning line">
+            {provisioning.line}
+          </Text>
+          <Pressable onPress={() => setProvisioning(null)} accessibilityRole="button" style={styles.action}>
+            <Text style={[T.tabLabel, { color: p.accent }]}>Done</Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -191,6 +240,11 @@ export default function Gateways() {
                     <Text style={[T.caption, { color: p.inkSoft, marginTop: 2 }]}>
                       {g.hardware_revision} · {g.firmware_version} · {packSerial(g.assigned_battery_id)}
                     </Text>
+                    {!g.auth_key ? (
+                      <Text style={[T.caption, { color: p.warn, marginTop: 2 }]}>
+                        No key: registered before keys existed. Rotate to provision it.
+                      </Text>
+                    ) : null}
                   </View>
                   <StatusChip tone={SECURITY_TONE[g.security_status]} label={SECURITY_LABEL[g.security_status]} />
                 </View>
@@ -198,6 +252,7 @@ export default function Gateways() {
                 <View style={[styles.actions, { borderTopColor: p.panelStitch }]}>
                   {g.security_status === 'valid' ? (
                     <>
+                      <Action label="Rotate key" tone={p.inkSoft} disabled={busy === g.id} onPress={() => onRotate(g)} />
                       <Action label="Quarantine" tone={p.warn} disabled={busy === g.id} onPress={() => void change(g, 'quarantined')} />
                       <Action label="Revoke" tone={p.critical} disabled={busy === g.id} onPress={() => onRevoke(g)} />
                     </>
@@ -261,5 +316,6 @@ const styles = StyleSheet.create({
     minHeight: 64,
   },
   actions: { flexDirection: 'row', borderTopWidth: 1 },
+  mono: { fontFamily: 'Courier', marginTop: 8 },
   action: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
 });

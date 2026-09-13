@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { Store } from '../db/client.js';
 import { canManageUsers, isRole, tenantQuery, type Principal, type Role } from '../db/tenancy.js';
 import { hashPassword } from '../auth/password.js';
@@ -421,12 +421,22 @@ export interface NewDevice {
   assignedBatteryId?: string | null;
 }
 
+/** The line an installer types into the gateway's serial console (§8). */
+export const provisioningLine = (serial: string, keyHex: string) => `provision ${serial} ${keyHex}`;
+
+export interface RegisteredDevice {
+  id: string;
+  /** Returned once, here. Readable again only through `listDevices`. */
+  authKey: string;
+  provisioning: string;
+}
+
 export async function registerDevice(
   store: Store,
   principal: Principal,
   input: NewDevice,
   now = Date.now()
-): Promise<string> {
+): Promise<RegisteredDevice> {
   if (!canManageUsers(principal, input.companyId)) {
     throw new AdminError('Not permitted to register devices for that company', 'forbidden');
   }
@@ -450,10 +460,13 @@ export async function registerDevice(
   // No gateway cap. How much hardware a company runs is the company's own
   // business.
   const id = randomUUID();
+  // The gateway's key. 32 random bytes; the gateway and the app both HMAC
+  // with it and neither ever sends it over the air.
+  const authKey = randomBytes(32).toString('hex');
   await store.run(
     `INSERT INTO devices
-     (id, company_id, serial, hardware_revision, firmware_version, assigned_battery_id, security_status, created_at)
-     VALUES (?,?,?,?,?,?,?,?)`,
+     (id, company_id, serial, hardware_revision, firmware_version, assigned_battery_id, security_status, auth_key, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
     id,
     input.companyId,
     serial,
@@ -461,9 +474,33 @@ export async function registerDevice(
     input.firmwareVersion,
     input.assignedBatteryId ?? null,
     'valid',
+    authKey,
     now
   );
-  return id;
+  return { id, authKey, provisioning: provisioningLine(serial, authKey) };
+}
+
+/**
+ * A new key for a gateway: after a phone that held the old one is lost, or
+ * for one registered before keys existed. The gateway has to be provisioned
+ * again with the line returned; until it is, the app will refuse it, which
+ * is the point.
+ */
+export async function rotateDeviceKey(
+  store: Store,
+  principal: Principal,
+  deviceId: string
+): Promise<RegisteredDevice> {
+  const device = await store.get<{ id: string; company_id: string; serial: string }>(
+    'SELECT id, company_id, serial FROM devices WHERE id = ?',
+    deviceId
+  );
+  if (!device || !canManageUsers(principal, device.company_id)) {
+    throw new AdminError('Device not found', 'not_found');
+  }
+  const authKey = randomBytes(32).toString('hex');
+  await store.run('UPDATE devices SET auth_key = ? WHERE id = ?', authKey, deviceId);
+  return { id: deviceId, authKey, provisioning: provisioningLine(device.serial, authKey) };
 }
 
 /* ------------------------------------------------------------- batteries */
@@ -537,6 +574,15 @@ export async function setDeviceSecurityStatus(
   await store.run('UPDATE devices SET security_status = ? WHERE id = ?', status, deviceId);
 }
 
+/**
+ * Every gateway, with its key.
+ *
+ * The key goes to everyone in the company who can reach this route: a
+ * technician standing at a pack needs it to verify the gateway, possibly
+ * with no signal, so the app fetches the list while it can and keeps the
+ * keys in secure storage. A revoked gateway is still listed, with its status,
+ * so the app can forget its key rather than keep it.
+ */
 export async function listDevices(store: Store, principal: Principal) {
   const q = tenantQuery(principal, 'devices', { orderBy: 'serial ASC' });
   return await store.all(q.sql, ...q.params);

@@ -654,5 +654,61 @@
     "file": "src/company/service.ts",
     "from": "  await ownedBattery(store, principal, batteryId);\n\n  if (patch.serial !== undefined) {",
     "to": "  void ownedBattery(store, principal, batteryId);\n\n  if (patch.serial !== undefined) {"
+  },
+  {
+    "name": "an impostor gateway passes verification",
+    "why": "The whole handshake exists so that a peripheral without the key is never treated as a company gateway.",
+    "package": "mobile",
+    "file": "src/ble/auth.ts",
+    "from": "      if (!bytesEqual(tagG, gatewayTag(this.gatewayKey, this.serial, this.nonceA, nonceG))) {",
+    "to": "      if (false) {"
+  },
+  {
+    "name": "a revoked gateway is still trusted",
+    "why": "Revocation is the lever that takes a suspect gateway out of service; the app must honour it before connecting.",
+    "package": "mobile",
+    "file": "src/ble/linkGateway.ts",
+    "from": "  const trusted = known.filter(usable);",
+    "to": "  const trusted = known;"
+  },
+  {
+    "name": "a read-only parameter is sent to the gateway anyway",
+    "why": "Fixed-by-hardware parameters must be refused in the app, not discovered by the BMS.",
+    "package": "mobile",
+    "file": "src/ble/gateway.ts",
+    "from": "    if (!spec.writable) throw new CommandRefusedError(STATUS.READ_ONLY);",
+    "to": "    // removed"
+  },
+  {
+    "name": "a frame from another protocol version is decoded",
+    "why": "Reading a layout the app does not know as if it did would show invented numbers as measurements.",
+    "package": "mobile",
+    "file": "src/ble/codec.ts",
+    "from": "  if (version !== PROTOCOL_VERSION) throw new FrameError(`Telemetry frame version ${version}, expected ${PROTOCOL_VERSION}`);",
+    "to": "  void version;"
+  },
+  {
+    "name": "a silent BMS reads as a refusal",
+    "why": "A write that timed out may have landed; calling it refused invites a second write of the same thing.",
+    "package": "mobile",
+    "file": "src/telemetry/BleSource.ts",
+    "from": "      if (error instanceof BmsTimeoutError) throw new WriteTimeoutError();",
+    "to": "      if (error instanceof BmsTimeoutError) return { ok: false, error: 'timeout' };"
+  },
+  {
+    "name": "a command goes out before the handshake",
+    "why": "Nothing may be issued to a gateway the app has not verified.",
+    "package": "mobile",
+    "file": "src/ble/gateway.ts",
+    "from": "    if (!this.session) throw new GatewayError('Not authenticated');\n    if (this.closed) throw new LinkLostError();",
+    "to": "    if (this.closed) throw new LinkLostError();"
+  },
+  {
+    "name": "the gateway key is never delivered to the app",
+    "why": "A technician with no signal could not verify the gateway in front of them.",
+    "package": "backend",
+    "file": "src/company/service.ts",
+    "from": "    id,\n    input.companyId,\n    serial,\n    input.hardwareRevision,\n    input.firmwareVersion,\n    input.assignedBatteryId ?? null,\n    'valid',\n    authKey,\n    now\n  );\n  return { id, authKey, provisioning: provisioningLine(serial, authKey) };",
+    "to": "    id,\n    input.companyId,\n    serial,\n    input.hardwareRevision,\n    input.firmwareVersion,\n    input.assignedBatteryId ?? null,\n    'valid',\n    null,\n    now\n  );\n  return { id, authKey, provisioning: provisioningLine(serial, authKey) };"
   }
 ]

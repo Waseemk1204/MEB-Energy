@@ -36,6 +36,7 @@ export default function Batteries() {
   const stage = useSessionStore((s) => s.stage);
   const connectingId = useSessionStore((s) => s.connectingBatteryId);
   const connectedId = useSessionStore((s) => s.connectedBatteryId);
+  const linkFailure = useSessionStore((s) => s.linkFailure);
   const role = useSessionStore((s) => s.role);
   const operator = useSessionStore((s) => s.operator);
   const signOut = useSessionStore((s) => s.signOut);
@@ -128,6 +129,27 @@ export default function Batteries() {
         showsVerticalScrollIndicator={false}
       >
         <SectionLabel>Your batteries</SectionLabel>
+
+        {/*
+          A failed link names the stage it failed at. "Could not connect" when
+          the gateway answered and was refused sends a technician to check
+          the wrong thing; the stage is the useful half of the message.
+        */}
+        {linkFailure ? (
+          <View
+            accessibilityRole="alert"
+            style={[styles.failure, { backgroundColor: p.panelAlt, borderLeftColor: p.critical }]}
+          >
+            <Text style={[T.rowValue, { color: p.critical }]}>
+              {linkFailure.stage === 'connecting'
+                ? 'Could not connect to a gateway'
+                : linkFailure.stage === 'authenticating'
+                  ? 'Gateway not verified'
+                  : 'Could not detect the BMS'}
+            </Text>
+            <Text style={[T.caption, { color: p.inkSoft, marginTop: 4 }]}>{linkFailure.message}</Text>
+          </View>
+        ) : null}
 
         {/*
           Nothing is shown that the server did not send. A technician hunting
@@ -266,6 +288,7 @@ const styles = StyleSheet.create({
   menuButton: { minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
   // Tall in practice; declared so the 44pt guarantee is verifiable.
   card: { paddingHorizontal: 16, paddingVertical: 16, marginBottom: 10, minHeight: 44 },
+  failure: { borderRadius: 16, padding: 14, marginBottom: 12, borderLeftWidth: 3 },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   dial: { width: 44, height: 36, justifyContent: 'center' },
   steps: { marginTop: 14, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, gap: 12 },

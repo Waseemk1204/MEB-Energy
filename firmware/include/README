@@ -1,0 +1,2 @@
+Headers live next to their sources in src/. This directory exists because
+PlatformIO adds it to the include path; nothing is here on purpose.

@@ -42,6 +42,7 @@ import {
   listUsers,
   registerBattery,
   registerDevice,
+  rotateDeviceKey,
   reinstateBattery,
   removeUser,
   renameCompany,
@@ -931,11 +932,18 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   app.post('/devices', async (request, reply) => {
     const principal = await principalOf(request);
     const body = parse(deviceBody, request.body);
-    const id = await registerDevice(store, principal, {
+    const registered = await registerDevice(store, principal, {
       ...body,
       companyId: ownCompanyId(principal, body.companyId),
     });
-    return reply.status(201).send({ id });
+    // The key and the console line come back here, once.
+    return reply.status(201).send(registered);
+  });
+
+  /** A new key. The gateway must be provisioned again with the line returned. */
+  app.post<{ Params: { id: string } }>('/devices/:id/rotate-key', async (request, reply) => {
+    const principal = await principalOf(request);
+    return reply.send(await rotateDeviceKey(store, principal, request.params.id));
   });
 
   app.get('/devices', async (request, reply) => {

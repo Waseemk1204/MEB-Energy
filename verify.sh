@@ -73,6 +73,16 @@ run mobile "lint" npx expo lint
 run mobile "web build" npx expo export --platform web
 run mobile "web build carries the app shell" test -f dist/manifest.webmanifest -a -f dist/sw.js -a -f dist/icons/icon-512.png
 
+step "firmware"
+# The protocol, the handshake and the JBD codec on the host, against the
+# same vectors the app asserts. Needs PlatformIO; without it the step is
+# reported as skipped rather than silently passed.
+if command -v pio > /dev/null 2>&1; then
+  run firmware "protocol host tests" pio test -e native
+else
+  printf '  - firmware host tests skipped (pio not installed: pip install platformio)\n'
+fi
+
 step "live check — real client modules against a running API"
 
 JWT_SECRET="a-verify-run-signing-secret-of-length" \

@@ -77,7 +77,7 @@ const PACK = {
 };
 const GATEWAY = (over = {}) => ({
   id: 'g1', serial: 'GW-0001', hardware_revision: 'HW 1.0', firmware_version: 'FW 1.2.4',
-  assigned_battery_id: 'b1', security_status: 'valid' as const, last_seen_at: null, created_at: 1,
+  assigned_battery_id: 'b1', security_status: 'valid' as const, auth_key: 'cd'.repeat(32), last_seen_at: null, created_at: 1,
   ...over,
 });
 const TECH = {
@@ -99,7 +99,7 @@ beforeEach(() => {
   }));
   mockRemove.mockReset().mockResolvedValue({ removed: true });
   mockListGateways.mockReset().mockResolvedValue([GATEWAY()]);
-  mockRegisterGateway.mockReset().mockResolvedValue({ id: 'g2' });
+  mockRegisterGateway.mockReset().mockResolvedValue({ id: 'g2', authKey: 'ab'.repeat(32), provisioning: `provision GW-0002 ${'ab'.repeat(32)}` });
   mockSetSecurity.mockReset().mockResolvedValue(undefined);
   mockListLedger.mockReset().mockResolvedValue([]);
   mockOpenSession.mockReset().mockResolvedValue('ss-1');
@@ -133,6 +133,28 @@ describe('gateways', () => {
     await waitFor(() => expect(mockRegisterGateway).toHaveBeenCalled());
     const [, input] = mockRegisterGateway.mock.calls[0] as [unknown, Record<string, string>];
     expect(input).toEqual({ serial: 'GW-0002', hardwareRevision: 'HW 1.1', firmwareVersion: 'FW 2.0' });
+  });
+
+  /** docs/BLE_CONTRACT.md §8: the key is shown once, as the console line. */
+  it('shows the provisioning line once after registering', async () => {
+    const q = await wrap(<Gateways />);
+    await waitFor(() => expect(q.getByLabelText('Register a gateway')).toBeTruthy());
+    await fireEvent.press(q.getByLabelText('Register a gateway'));
+    await fireEvent.changeText(q.getByLabelText('Gateway serial'), 'GW-0002');
+    await fireEvent.changeText(q.getByLabelText('Hardware revision'), 'HW 1.1');
+    await fireEvent.changeText(q.getByLabelText('Firmware version'), 'FW 2.0');
+    await fireEvent.press(q.getByText('Register gateway'));
+    await waitFor(() => expect(q.getByText('Provision GW-0002 now')).toBeTruthy());
+    expect(q.getByLabelText('Provisioning line').props.children).toBe(`provision GW-0002 ${'ab'.repeat(32)}`);
+    await fireEvent.press(q.getByText('Done'));
+    expect(q.queryByText('Provision GW-0002 now')).toBeNull();
+  });
+
+  it('says when a gateway has no key yet', async () => {
+    mockListGateways.mockResolvedValue([GATEWAY({ auth_key: null })]);
+    const q = await wrap(<Gateways />);
+    await waitFor(() => expect(q.getByText(/No key: registered before keys existed/)).toBeTruthy());
+    expect(q.getByText('Rotate key')).toBeTruthy();
   });
 
   /** Quarantine is the reversible one, so it needs no confirmation. */

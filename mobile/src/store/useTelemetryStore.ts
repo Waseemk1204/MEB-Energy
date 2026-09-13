@@ -2,15 +2,21 @@ import { create } from 'zustand';
 import { MockSource } from '../telemetry/MockSource';
 import { BleSource } from '../telemetry/BleSource';
 import type { BatterySnapshot, TelemetrySource } from '../telemetry/types';
+import type { GatewayClient } from '../ble/gateway';
 import { UploadBuffer } from '../telemetry/uploadBuffer';
 import { flushTelemetry } from '../telemetry/uploader';
 import { api } from '../api/session';
 
 /**
- * Flip to false once the firmware telemetry contract lands. No screen file
- * changes when you do — that is the whole point of the TelemetrySource seam.
+ * Simulated pack, or a real gateway over Bluetooth.
+ *
+ * Simulated unless the build says otherwise: `EXPO_PUBLIC_TELEMETRY=ble` at
+ * build (or `expo start`) time turns the real path on. No screen file changes
+ * either way — that is the whole point of the TelemetrySource seam. The
+ * simulator says it is simulated, and the upload buffer refuses its frames,
+ * so a mock session can never put an invented reading in the ledger.
  */
-export const USE_MOCK = true;
+export const USE_MOCK = process.env.EXPO_PUBLIC_TELEMETRY !== 'ble';
 
 export interface HistoryPoint {
   t: number;
@@ -42,7 +48,12 @@ type TelemetryState = {
   /** The pack these frames belong to; uploads are addressed to it. */
   batteryId: string | null;
   flushTimer: ReturnType<typeof setInterval> | null;
-  connect: (batteryId: string) => void;
+  /**
+   * With a gateway: frames come off it. Without one: the simulator. The
+   * session store decides which, because it is the one that ran the
+   * connect sequence and knows whether a verified gateway exists.
+   */
+  connect: (batteryId: string, gateway?: GatewayClient | null) => void;
   disconnect: () => void;
   flush: () => Promise<void>;
 };
@@ -56,12 +67,12 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
   batteryId: null,
   flushTimer: null,
 
-  connect: (batteryId) => {
+  connect: (batteryId, gateway = null) => {
     if (get().source) return;
 
     // A new link must not inherit the previous pack's frames.
     get().buffer.reset();
-    const source: TelemetrySource = USE_MOCK ? new MockSource() : new BleSource('KYE-000184');
+    const source: TelemetrySource = gateway ? new BleSource(gateway) : new MockSource();
     source.start((snapshot) => {
       set((state) => {
         const point: HistoryPoint = {

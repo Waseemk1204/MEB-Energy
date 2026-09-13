@@ -19,6 +19,8 @@ export interface Gateway {
   firmware_version: string;
   assigned_battery_id: string | null;
   security_status: GatewaySecurity;
+  /** The handshake key, hex. Null for a gateway registered before keys existed. */
+  auth_key: string | null;
   last_seen_at: number | null;
   created_at: number;
 }
@@ -52,8 +54,20 @@ export async function listGateways(api: ApiClient): Promise<Gateway[]> {
   return (await api.get<{ devices: Gateway[] }>('/devices')).devices;
 }
 
-export async function registerGateway(api: ApiClient, input: NewGateway): Promise<{ id: string }> {
+/** The key and the console line come back here, once (docs/BLE_CONTRACT.md §8). */
+export interface RegisteredGateway {
+  id: string;
+  authKey: string;
+  provisioning: string;
+}
+
+export async function registerGateway(api: ApiClient, input: NewGateway): Promise<RegisteredGateway> {
   return api.authedPost('/devices', input);
+}
+
+/** A new key; the gateway must be provisioned again with the line returned. */
+export async function rotateGatewayKey(api: ApiClient, id: string): Promise<RegisteredGateway> {
+  return api.authedPost(`/devices/${id}/rotate-key`, {});
 }
 
 export async function setGatewaySecurity(

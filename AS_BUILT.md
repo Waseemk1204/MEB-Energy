@@ -123,9 +123,49 @@ run and live-checked with nothing installed. `api/index.ts` is the Vercel
 function: one warm Fastify instance per function instance, requests handed
 to it, the migration and bootstrap paid once on the cold start.
 
+### The gateway (September 2026)
+
+The device path was a stub on both ends. It is now a contract
+(`docs/BLE_CONTRACT.md`), a firmware (`firmware/`) and a transport in the app
+(`mobile/src/ble/`), and the three are held together by bytes rather than by
+agreement: the app's codec tests assert fixed frames, the firmware's host
+tests assert the same frames, and the handshake vectors in one are the
+snapshot of the other.
+
+The decision that shaped it: the gateway is programmed by the company, so
+the protocol is ours to define rather than reverse-engineer, and it was
+defined around the app's needs -- the frame carries exactly the
+BatterySnapshot fields, the parameters are the capability profile's keys,
+and the outcomes are the ledger's. JBD's own UART protocol stays inside the
+firmware; the app never sees a vendor packet.
+
+Two rules the contract exists for. Authentication is mutual: a gateway that
+only proved itself would still take writes from any phone that walked past,
+so both sides prove the key and every command is tagged with a session key
+derived from the exchange. And a write reports only what the BMS holds
+afterwards -- the gateway reads the register back and answers with that, so
+"sent" is never an outcome.
+
+Where the honesty lives: `firmware/src/jbd_params.h` marks six parameters
+unverified. Their JBD registers pack several fields or vary by board, and
+the gateway answers UNKNOWN_PARAM for them until the SP24S004 sheet confirms
+the register and the encoding. The app shows that as a refusal. Writing to a
+guessed register on a battery is not something to do to find out.
+
+The transport is one interface (`GattLink`) with three implementations: Web
+Bluetooth in Chrome, react-native-ble-plx on a phone, and a software gateway
+in the tests that does what the firmware does. The connect sequence
+(`linkGateway.ts`) enforces the order the contract demands and names the
+stage a failure happened at, because "could not connect" when the gateway
+answered and was refused sends a technician to check the wrong thing.
+
+What has not happened: a board provisioned, wired to a pack and connected to.
+`EXPO_PUBLIC_TELEMETRY=ble` opts a build in; the default is still the
+simulator.
+
 ### Numbers
 
-Backend 554 tests on each of two dialects (was 545 on one), app 762, mutants
+App 838 tests, firmware 14 host tests, mutants 89. Before that: backend 554 tests on each of two dialects (was 545 on one), app 762, mutants
 82. Before that: backend 542 tests (was 645: the entitlement, session-cap and overview suites
 went with their code), app 751 (was 754), console 0 (was 350). Mutants 78
 (was 88): the 12 console rules and 24 rules about things that no longer exist

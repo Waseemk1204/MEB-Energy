@@ -1,0 +1,10 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`commands has a stable tag vector 1`] = `"8e85ea9fa1c15a048c37aafa7b6ae559"`;
+
+exports[`the handshake produces the contract vectors 1`] = `
+{
+  "session": "ac22d53ad186fe8ee4eaa8c872f07aaa603e02fa0afb5f5561622887bca88240",
+  "tagG": "a1b0fcdc1f7b35c6afb6f58544465297425278aedd3a48779822b1d2a16749f3",
+}
+`;

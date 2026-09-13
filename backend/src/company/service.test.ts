@@ -12,6 +12,7 @@ import {
   listUsers,
   registerDevice,
   renameCompany,
+  rotateDeviceKey,
   setDeviceSecurityStatus,
   setUserStatus,
   updateUser,
@@ -111,7 +112,7 @@ describe('the overview', () => {
   });
 
   it('counts gateways in service separately', async () => {
-    const id = await registerDevice(store, acmeOwner, {
+    const { id } = await registerDevice(store, acmeOwner, {
       companyId: ACME, serial: 'KYE-1', hardwareRevision: 'HW 1.0', firmwareVersion: 'FW 1',
     });
     await registerDevice(store, acmeOwner, {
@@ -299,7 +300,37 @@ describe('devices', () => {
   });
 
   it('registers one for your own company', async () => {
-    assert.ok(await registerDevice(store, acmeOwner, device()));
+    assert.ok((await registerDevice(store, acmeOwner, device())).id);
+  });
+
+  /** docs/BLE_CONTRACT.md §5 and §8: the key the gateway is provisioned with. */
+  it('gives every gateway a 32-byte key and the console line to provision it', async () => {
+    const d = device({ serial: 'GW-000184' });
+    const registered = await registerDevice(store, acmeOwner, d);
+    assert.match(registered.authKey, /^[0-9a-f]{64}$/);
+    assert.equal(registered.provisioning, `provision GW-000184 ${registered.authKey}`);
+    const listed = (await listDevices(store, acmeOwner)) as { serial: string; auth_key: string }[];
+    assert.equal(listed.find((x) => x.serial === 'GW-000184')?.auth_key, registered.authKey);
+  });
+
+  it('gives each gateway its own key', async () => {
+    const a = await registerDevice(store, acmeOwner, device());
+    const b = await registerDevice(store, acmeOwner, device());
+    assert.notEqual(a.authKey, b.authKey);
+  });
+
+  it('rotates a key, and the old one is gone', async () => {
+    const first = await registerDevice(store, acmeOwner, device());
+    const rotated = await rotateDeviceKey(store, acmeOwner, first.id);
+    assert.notEqual(rotated.authKey, first.authKey);
+    assert.match(rotated.provisioning, /^provision KYE-/);
+    const listed = (await listDevices(store, acmeOwner)) as { id: string; auth_key: string }[];
+    assert.equal(listed.find((x) => x.id === first.id)?.auth_key, rotated.authKey);
+  });
+
+  it('will not rotate another company’s key', async () => {
+    const theirs = await registerDevice(store, rivalOwner, device({ companyId: RIVAL }));
+    await assert.rejects(() => rotateDeviceKey(store, acmeOwner, theirs.id), /not found/);
   });
 
   it('stops an administrator registering into another company', async () => {
@@ -323,7 +354,7 @@ describe('devices', () => {
   });
 
   it('starts valid', async () => {
-    const id = await registerDevice(store, acmeOwner, device());
+    const { id } = await registerDevice(store, acmeOwner, device());
     const row = await store.get<{ security_status: string }>('SELECT security_status FROM devices WHERE id = ?', id);
     assert.equal(row?.security_status, 'valid');
   });
@@ -333,7 +364,7 @@ describe('devices', () => {
       'INSERT INTO batteries (id, company_id, serial, chemistry, cell_count, created_at) VALUES (?,?,?,?,?,?)',
       'bat-1', ACME, 'BAT-1', 'LiFePO4', 24, Date.now()
     );
-    const id = await registerDevice(store, acmeOwner, device({ assignedBatteryId: 'bat-1' }));
+    const { id } = await registerDevice(store, acmeOwner, device({ assignedBatteryId: 'bat-1' }));
     const row = await store.get<{ assigned_battery_id: string }>('SELECT assigned_battery_id FROM devices WHERE id = ?', id);
     assert.equal(row?.assigned_battery_id, 'bat-1');
   });
@@ -351,7 +382,7 @@ describe('devices', () => {
 
   /** The app refuses any gateway that is not `valid`, so this takes one out of service. */
   it('can be quarantined and revoked', async () => {
-    const id = await registerDevice(store, acmeOwner, device());
+    const { id } = await registerDevice(store, acmeOwner, device());
     for (const status of ['quarantined', 'revoked'] as const) {
       await setDeviceSecurityStatus(store, acmeOwner, id, status);
       const row = await store.get<{ security_status: string }>('SELECT security_status FROM devices WHERE id = ?', id);
@@ -360,7 +391,7 @@ describe('devices', () => {
   });
 
   it('hides another company’s device', async () => {
-    const id = await registerDevice(store, rivalOwner, device({ companyId: RIVAL }));
+    const { id } = await registerDevice(store, rivalOwner, device({ companyId: RIVAL }));
     await assert.rejects(async () => await setDeviceSecurityStatus(store, acmeOwner, id, 'revoked'), /not found/);
   });
 

@@ -115,6 +115,11 @@ CREATE TABLE IF NOT EXISTS devices (
   assigned_battery_id TEXT REFERENCES batteries(id),
   security_status TEXT NOT NULL DEFAULT 'valid'
     CHECK (security_status IN ('valid','revoked','quarantined')),
+  -- The 32-byte key the gateway proves it holds (docs/BLE_CONTRACT.md §5),
+  -- as 64 hex characters. Generated at registration, provisioned into the
+  -- gateway once, and handed to the company's users so a technician with no
+  -- signal can still verify the gateway in front of them.
+  auth_key TEXT,
   last_seen_at BIGINT,
   latitude DOUBLE PRECISION, longitude DOUBLE PRECISION, location_at BIGINT,
   created_at BIGINT NOT NULL
@@ -365,6 +370,7 @@ export function createStore(file = ':memory:'): Store {
     addColumnIfMissing(db, 'users', 'can_location', 'INTEGER NOT NULL DEFAULT 1');
     addColumnIfMissing(db, 'users', 'can_health', 'INTEGER NOT NULL DEFAULT 1');
     addColumnIfMissing(db, 'batteries', 'status', "TEXT NOT NULL DEFAULT 'active'");
+    addColumnIfMissing(db, 'devices', 'auth_key', 'TEXT');
     db.prepare(RETIRE_LEGACY_ADMINS).run();
     db.exec('COMMIT');
   } catch (error) {

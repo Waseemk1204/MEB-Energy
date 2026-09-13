@@ -66,6 +66,7 @@ function useEntryFlow() {
 function Shell() {
   const { p } = useTheme();
   const connectedBatteryId = useSessionStore((s) => s.connectedBatteryId);
+  const gateway = useSessionStore((s) => s.gateway);
   const connect = useTelemetryStore((s) => s.connect);
   const disconnect = useTelemetryStore((s) => s.disconnect);
   const hydrate = useSessionStore((s) => s.hydrate);
@@ -88,9 +89,9 @@ function Shell() {
   // would file readings against it.
   useEffect(() => {
     if (!connectedBatteryId) return;
-    connect(connectedBatteryId);
+    connect(connectedBatteryId, gateway);
     return disconnect;
-  }, [connectedBatteryId, connect, disconnect]);
+  }, [connectedBatteryId, gateway, connect, disconnect]);
 
   // Hold on a plain themed ground rather than rendering a screen the guard is
   // about to replace.

@@ -9,6 +9,10 @@ Two codebases, one product:
 |---|---|---|
 | [`mobile/`](mobile) | The app. Technicians connect to packs over BLE; administrators look after people, fleet, gateways, the ledger and remote support. Built for the web as a PWA; iOS and Android build from the same source. | Expo SDK 57, React Native 0.86, expo-router |
 | [`backend/`](backend) | The API — auth, the company, policy, the audit ledger, the command broker | Node 22, Fastify 5; Postgres in production, `node:sqlite` in development |
+| [`firmware/`](firmware) | The gateway: an ESP32 between a JBD BMS (UART) and the app (BLE) | PlatformIO, Arduino framework, NimBLE |
+
+The app and the gateway meet at **[`docs/BLE_CONTRACT.md`](docs/BLE_CONTRACT.md)**.
+Both are written from it and both are tested against the same byte vectors.
 
 This is a standalone company application. It began life as a multi-tenant
 platform with a separate administration console; that layer — platform
@@ -199,6 +203,19 @@ Two endpoints, and the difference matters to an orchestrator:
 
 ---
 
+## Talking to a gateway
+
+```bash
+cd mobile && EXPO_PUBLIC_TELEMETRY=ble npm run web     # Chrome; the tap on a pack opens the Bluetooth chooser
+```
+
+The flow: register the gateway (Company → Gateways → Add), paste the
+provisioning line it shows into the gateway's serial console, then as any
+user tap a pack. The app finds the gateway, refuses it unless its serial is
+in the company's list and in service, proves the key both ways, and only
+then reads telemetry. A failed link names the stage it failed at.
+`firmware/README.md` covers building, wiring and provisioning the board.
+
 ## Verifying it
 
 ```bash
@@ -252,7 +269,7 @@ every browser until the CORS allowlist named the verb.
 ### Checking the tests themselves
 
 ```bash
-node mutants.mjs            # all 82 rules
+node mutants.mjs            # all 89 rules
 node mutants.mjs mobile     # one package
 node mutants.mjs "PIN"      # by name
 ```
@@ -271,11 +288,22 @@ refusing anything that admits to it. A mock session drives every screen and
 uploads nothing. When `BleSource` lands it declares itself real and the uploads
 start working, with no other change.
 
-**The device path does not exist.** `backend/src/main.ts` wires a dispatcher
-that throws by design, and `mobile/src/telemetry/BleSource.ts` does the same.
-Commands are queued, policy is evaluated and the audit trail is written — the
-last two hops (app → BLE → gateway → UART → BMS) need the firmware telemetry
-contract. Note that a browser has no BLE; the on-site path is the phone build.
+**The device path is built and not yet run against a battery.** The
+gateway firmware, the app's Bluetooth transport and the contract between them
+exist and are tested against each other in software — the app's tests drive a
+gateway written from the contract, the firmware's host tests assert the same
+byte vectors — but no ESP32 has yet been provisioned, wired to an SP24S004 and
+connected to from the app. Until it has, `EXPO_PUBLIC_TELEMETRY=ble` is a
+build-time opt-in and the default remains the simulator. Six parameters in
+the firmware's register table are marked unverified and are refused until
+the SP24S004 register sheet confirms them (see `firmware/README.md`).
+`backend/src/main.ts` still wires a dispatcher that throws: the server never
+writes to a BMS itself — remote changes are collected by the technician's
+app and carried over the link.
+
+**Bluetooth in the browser is Chrome and Edge only** — Android, Windows,
+macOS, Linux, ChromeOS. Safari on iOS has none; on an iPhone the on-site path
+is the native build from the same source.
 
 **Invitations have no delivery.** An administrator hands the link over
 themselves, and whoever holds an unused link can claim that account. Single use

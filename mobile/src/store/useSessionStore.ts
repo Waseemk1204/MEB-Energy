@@ -8,6 +8,10 @@ import { useProfileStore } from './useProfileStore';
 import { useActivityStore } from './useActivityStore';
 import { useFleetStore } from './useFleetStore';
 import { useRemoteChangeStore } from './useRemoteChangeStore';
+import { USE_MOCK } from './useTelemetryStore';
+import { loadKnownGateways } from './gatewayKeys';
+import { linkGateway, LinkFailedError } from '../ble/linkGateway';
+import type { GatewayClient } from '../ble/gateway';
 
 /**
  * Session and link state for the PRD §7.4 core flow:
@@ -62,6 +66,10 @@ type SessionState = {
   connectingBatteryId: string | null;
   stage: ConnectStage;
   error: string | null;
+  /** The verified gateway behind the link, when it is a real one. */
+  gateway: GatewayClient | null;
+  /** Why the last connect attempt failed, and at which stage. Cleared on the next. */
+  linkFailure: { stage: ConnectStage; message: string } | null;
   /** True while a sign-in request is in flight. */
   signingIn: boolean;
 
@@ -98,6 +106,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   connectingBatteryId: null,
   stage: 'idle',
   error: null,
+  gateway: null,
+  linkFailure: null,
   signingIn: false,
 
   hydrate: async () => {
@@ -260,22 +270,48 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   connect: async (batteryId) => {
     if (get().connectingBatteryId) return false;
-    logInfo('ble', 'Connect requested', { battery: batteryId });
-    set({ connectingBatteryId: batteryId, stage: 'connecting', error: null });
-    await wait(700);
+    logInfo('ble', 'Connect requested', { battery: batteryId, mock: USE_MOCK });
+    set({ connectingBatteryId: batteryId, stage: 'connecting', error: null, linkFailure: null });
 
-    logInfo('ble', 'Authenticating device', { battery: batteryId });
-    set({ stage: 'authenticating' });
-    await wait(650);
-
-    // The app refuses to treat an unverified peripheral as a company gateway.
-    // With BleSource wired this is the challenge/response against the gateway's
-    // secure element; failing it must stop the flow here, before any read.
-    set({ stage: 'detecting' });
-    await wait(600);
+    let gateway: GatewayClient | null = null;
+    if (USE_MOCK) {
+      // The simulator: the same three stages, with the timing a real link
+      // has, so the screens are walkable before a gateway exists.
+      await wait(700);
+      logInfo('ble', 'Authenticating device', { battery: batteryId });
+      set({ stage: 'authenticating' });
+      await wait(650);
+      set({ stage: 'detecting' });
+      await wait(600);
+    } else {
+      // A real gateway: find it, check it against the company's list, prove
+      // the key both ways, then look for the BMS. An unverified peripheral
+      // is never treated as a company gateway, and a failure names its stage.
+      try {
+        const known = await loadKnownGateways(api);
+        const outcome = await linkGateway(batteryId, known, (stage) => set({ stage }));
+        gateway = outcome.client;
+        gateway.onLostLink(() => {
+          if (get().connectedBatteryId === batteryId) {
+            logWarn('ble', 'Link lost', { battery: batteryId });
+            get().disconnect();
+            set({ error: 'The connection to the gateway was lost.' });
+          }
+        });
+        logInfo('ble', 'Gateway verified', { serial: outcome.serial, bms: outcome.bmsModel });
+      } catch (caught) {
+        const stage = caught instanceof LinkFailedError ? caught.stage : get().stage;
+        const message = caught instanceof Error ? caught.message : 'Could not connect to the gateway';
+        logWarn('ble', 'Link failed', { stage, message });
+        set({ stage: 'failed', connectingBatteryId: null, error: message, linkFailure: { stage, message } });
+        return false;
+      }
+    }
 
     logInfo('ble', 'Link established', { battery: batteryId });
-    set({ stage: 'connected', connectedBatteryId: batteryId, connectingBatteryId: null });
+    // The root layout starts telemetry when these change, from the gateway
+    // if there is one and the simulator if not.
+    set({ stage: 'connected', connectedBatteryId: batteryId, connectingBatteryId: null, gateway });
 
     // The BMS model is only known once it has been detected, so this is the
     // first moment the right profile can be asked for. It is deliberately not
@@ -306,7 +342,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     // entries are still the only record that a change reached a real pack.
     if (battery) void useActivityStore.getState().sync(battery);
 
-    set({ connectedBatteryId: null, connectingBatteryId: null, stage: 'idle' });
+    set({ connectedBatteryId: null, connectingBatteryId: null, stage: 'idle', gateway: null });
   },
 }));
 

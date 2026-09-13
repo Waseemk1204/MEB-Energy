@@ -283,3 +283,26 @@ describe('the menu', () => {
     expect(useSessionStore.getState().authenticated).toBe(false);
   });
 });
+
+/**
+ * A failed link names the stage it failed at. "Could not connect" when the
+ * gateway answered and was refused sends a technician to check the wrong
+ * thing; the stage is the useful half of the message.
+ */
+describe('a failed link', () => {
+  it('says which stage failed, and why', async () => {
+    useSessionStore.setState({
+      linkFailure: { stage: 'authenticating', message: 'Gateway GW-000184 could not be verified: wrong key' },
+    });
+    const q = await wrap();
+    expect(q.getByText('Gateway not verified')).toBeTruthy();
+    expect(q.getByText(/wrong key/)).toBeTruthy();
+    useSessionStore.setState({ linkFailure: null });
+  });
+
+  it('shows nothing when the last link succeeded', async () => {
+    useSessionStore.setState({ linkFailure: null });
+    const q = await wrap();
+    expect(q.queryByText(/Gateway not verified|Could not connect/)).toBeNull();
+  });
+});
